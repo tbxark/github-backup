@@ -8,7 +8,7 @@ A simple tool to back up GitHub repository to gitea or other provider.
 
 #### Build from source
 ```bash
-go install github.com/TBXark/github-backup@latest
+go install github.com/tbxark/github-backup@latest
 ````
 
 ### Usage
