@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TBXark/github-backup/provider/provider"
-	"github.com/TBXark/github-backup/utils/request"
+	"github.com/tbxark/github-backup/provider/provider"
+	"github.com/tbxark/github-backup/utils/request"
 )
 
 type Config struct {

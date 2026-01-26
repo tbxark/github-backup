@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/TBXark/github-backup/config"
-	"github.com/TBXark/github-backup/provider/gitea"
-	"github.com/TBXark/github-backup/provider/github"
-	"github.com/TBXark/github-backup/provider/local"
-	"github.com/TBXark/github-backup/provider/provider"
-	"github.com/TBXark/github-backup/utils/matcher"
+	"github.com/tbxark/github-backup/config"
+	"github.com/tbxark/github-backup/provider/gitea"
+	"github.com/tbxark/github-backup/provider/github"
+	"github.com/tbxark/github-backup/provider/local"
+	"github.com/tbxark/github-backup/provider/provider"
+	"github.com/tbxark/github-backup/utils/matcher"
 )
 
 func BuildBackupProvider(conf *config.BackupProviderConfig) (provider.Provider, error) {

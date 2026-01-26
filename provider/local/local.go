@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/TBXark/github-backup/provider/provider"
+	"github.com/tbxark/github-backup/provider/provider"
 )
 
 type UpdateAction string

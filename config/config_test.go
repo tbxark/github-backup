@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/TBXark/github-backup/provider/gitea"
+	"github.com/tbxark/github-backup/provider/gitea"
 )
 
 func TestSyncConfig(t *testing.T) {

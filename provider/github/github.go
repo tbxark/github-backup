@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TBXark/github-backup/utils/request"
+	"github.com/tbxark/github-backup/utils/request"
 )
 
 type Repo struct {

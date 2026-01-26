@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/TBXark/github-backup/config"
 	"github.com/robfig/cron/v3"
+	"github.com/tbxark/github-backup/config"
 )
 
 var (
