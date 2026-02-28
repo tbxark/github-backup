@@ -1,0 +1,26 @@
+{
+  "name": "github-repo-backup",
+  "version": "1.0.0",
+  "description": "Backup all github repos, (This is a [zx](https://github.com/google/zx) based script)",
+  "main": "backup.mjs",
+  "scripts": {
+    "lint": "eslint --ext .mjs ."
+  },
+  "bin": {
+    "backup": "./backup.mjs",
+    "mirror": "./mirror.mjs"
+  },
+  "dependencies": {
+    "zx": "^8.8.5"
+  },
+  "devDependencies": {
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0"
+  },
+  "files": [
+    "backup.mjs",
+    "mirror.mjs"
+  ],
+  "author": "TBXark",
+  "license": "MIT"
+}
