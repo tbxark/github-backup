@@ -2,7 +2,7 @@
 
 A simple tool to back up GitHub repository to gitea or other provider.
 
-> Legacy javascript version you can find in [legacy](./legacy/)
+> Legacy javascript version you can find in [legacy](https://github.com/tbxark/github-backup/tree/legacy)
 
 ### Installation
 
