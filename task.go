@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/tbxark/github-backup/config"
 	"github.com/tbxark/github-backup/provider/gitea"
@@ -31,14 +34,16 @@ func BuildBackupProvider(conf *config.BackupProviderConfig) (provider.Provider, 
 }
 
 type SyncTask struct {
-	conf    *config.SyncConfig
-	counter map[string]int
+	conf        *config.SyncConfig
+	counter     map[string]int
+	Interactive bool
 }
 
 func NewTask(conf *config.SyncConfig) *SyncTask {
 	return &SyncTask{
-		conf:    conf,
-		counter: make(map[string]int, 100),
+		conf:        conf,
+		counter:     make(map[string]int, 100),
+		Interactive: true,
 	}
 }
 
@@ -117,13 +122,16 @@ func (t *SyncTask) execute(target *config.GithubConfig) {
 	}
 
 	// delete unmatched repos if needed
-	if target.Filter.UnmatchedRepoAction == config.UnmatchedRepoActionDelete {
+	if target.Filter.UnmatchedRepoAction == config.UnmatchedRepoActionDelete ||
+		target.Filter.UnmatchedRepoAction == config.UnmatchedRepoActionAsk {
 		// load local repos
 		localRepos, lErr := backup.LoadRepos(to)
 		if lErr != nil {
 			log.Panicf("load %s repos error: %s", target.RepoOwner, lErr.Error())
 		}
-		// delete unmatched repos
+
+		// collect repos to delete
+		var toDelete []string
 		for _, repo := range localRepos {
 			if _, ok := handledRepos[repo]; ok {
 				continue
@@ -134,6 +142,38 @@ func (t *SyncTask) execute(target *config.GithubConfig) {
 					continue
 				}
 			}
+			toDelete = append(toDelete, repo)
+		}
+
+		if len(toDelete) == 0 {
+			return
+		}
+
+		// ask mode requires interactive confirmation
+		if target.Filter.UnmatchedRepoAction == config.UnmatchedRepoActionAsk {
+			if !t.Interactive {
+				log.Printf("ask mode: skip deleting %d unmatched repo(s) because not running in interactive mode", len(toDelete))
+				return
+			}
+			fmt.Printf("\nThe following %d repo(s) in %s are unmatched and will be deleted:\n", len(toDelete), target.RepoOwner)
+			for _, repo := range toDelete {
+				fmt.Printf("  - %s\n", repo)
+			}
+			fmt.Print("Are you sure you want to delete these repos? (yes/no): ")
+			reader := bufio.NewReader(os.Stdin)
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				log.Printf("ask mode: read confirmation error: %s, skip deleting", err.Error())
+				return
+			}
+			if strings.TrimSpace(strings.ToLower(input)) != "yes" {
+				log.Printf("ask mode: deletion cancelled by user")
+				return
+			}
+		}
+
+		// delete collected repos
+		for _, repo := range toDelete {
 			s, e := backup.DeleteRepo(target.RepoOwner, repo)
 			if e != nil {
 				log.Printf("delete %s error: %s", repo, e.Error())

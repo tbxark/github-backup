@@ -33,6 +33,7 @@ func main() {
 
 	syncTask := NewTask(data)
 	if data.Cron != "" {
+		syncTask.Interactive = false
 		task := cron.New()
 		_, e := task.AddJob(data.Cron, syncTask)
 		if e != nil {

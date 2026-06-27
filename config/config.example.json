@@ -38,7 +38,7 @@
         }
       },
       "filter": {
-        "unmatched_repo_action": "ignore",
+        "unmatched_repo_action": "ask",
         "allow_rule": null,
         "deny_rule": null
       }

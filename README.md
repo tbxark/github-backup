@@ -57,7 +57,8 @@ github-backup -config config.json
       },
       // Filter rules
       "filter": {
-        // When the repository is not matched, the action to be taken, currently only supports delete and ignore
+        // When the repository is not matched, the action to be taken, currently supports delete, ignore and ask
+        // ask mode will prompt for confirmation before deleting, and skip deletion when running in cron mode
         "unmatched_repo_action": "ignore",
         // Allow rules, only repositories that match the rules will be backed up
         // The rule is a regular expression, the format is :owner/:repo/:private/:fork/:archived

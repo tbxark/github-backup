@@ -22,6 +22,7 @@ type UnmatchedRepoAction string
 const (
 	UnmatchedRepoActionDelete UnmatchedRepoAction = "delete"
 	UnmatchedRepoActionIgnore UnmatchedRepoAction = "ignore"
+	UnmatchedRepoActionAsk    UnmatchedRepoAction = "ask"
 )
 
 type BackupProviderConfig struct {
