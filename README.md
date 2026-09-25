@@ -30,6 +30,8 @@ github-backup -config config.json
 
 ### Configuration
 
+Open [the single-page config editor](config/editor.html) in a browser to create or import a configuration, then copy or download `config.json`. The editor uses Vue from a CDN, so it needs an internet connection when opened. It does not automatically save entered tokens.
+
 > The configuration file is a json file, the default configuration is as follows, You need to replace the placeholder with your own configuration, And delete the comments
 ```json5
 {

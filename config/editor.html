@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>GitHub Backup Configuration Editor</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #24292f; background: #f6f8fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    [v-cloak] { display: none; }
+    .hero { color: #f0f6fc; background: #24292f; border-bottom: 1px solid #57606a; padding: 28px max(24px, calc((100vw - 1280px) / 2)); }
+    .hero-inner { max-width: 1280px; margin: auto; display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+    .eyebrow { margin: 0 0 9px; color: #8b949e; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(25px, 3vw, 32px); letter-spacing: -.025em; }
+    .hero p:last-child { max-width: 680px; margin: 10px 0 0; color: #c9d1d9; line-height: 1.55; }
+    .hero-badge { border: 1px solid #57606a; border-radius: 6px; padding: 7px 11px; white-space: nowrap; color: #c9d1d9; font-size: 12px; }
+    .layout { max-width: 1280px; padding: 24px 20px 60px; margin: auto; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(330px, 1fr); gap: 20px; align-items: start; }
+    .stack { display: grid; gap: 16px; }
+    .card { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; padding: 22px; }
+    .card-head, .section-head, .target-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+    h3 { margin: 0; font-size: 14px; }
+    .muted { color: #57606a; font-size: 13px; line-height: 1.5; margin: 6px 0 0; }
+    .section { margin-top: 20px; padding-top: 19px; border-top: 1px solid #d8dee4; }
+    .section-head { margin-bottom: 13px; align-items: center; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .field { display: grid; gap: 7px; min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    .field > span, .field > label { font-size: 13px; font-weight: 600; color: #24292f; }
+    input:not([type="checkbox"]):not([type="file"]), select, textarea { width: 100%; min-width: 0; border: 1px solid #d0d7de; border-radius: 6px; padding: 8px 10px; color: #24292f; background: #fff; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: #0969da !important; box-shadow: 0 0 0 3px #0969da33; }
+    textarea { min-height: 72px; resize: vertical; line-height: 1.45; }
+    input::placeholder, textarea::placeholder { color: #6e7781; }
+    .hint { color: #57606a; font-size: 12px; line-height: 1.45; }
+    .check { display: inline-flex; align-items: center; gap: 8px; color: #24292f; font-size: 13px; font-weight: 500; cursor: pointer; }
+    .check input { width: 16px; height: 16px; accent-color: #0969da; }
+    .checks { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; min-height: 38px; }
+    .button { border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; color: #24292f; padding: 7px 12px; font-weight: 600; font-size: 13px; }
+    .button:hover { background: #eef1f4; border-color: #afb8c1; }
+    .button.primary { background: #2da44e; border-color: #2a9146; color: #fff; }
+    .button.primary:hover { background: #2c974b; border-color: #298e46; }
+    .button.danger { color: #cf222e; }
+    .button.danger:hover { background: #ffebe9; border-color: #cf222e; }
+    .button:disabled { opacity: .55; cursor: not-allowed; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .target { border: 1px solid #d0d7de; border-radius: 6px; padding: 17px; background: #f6f8fa; }
+    .target + .target { margin-top: 14px; }
+    .target-head { align-items: center; margin-bottom: 16px; }
+    .target-name { font-weight: 600; }
+    .pill { display: inline-block; padding: 3px 7px; border: 1px solid #b6e3ff; border-radius: 999px; background: #ddf4ff; color: #0969da; font-size: 11px; font-weight: 600; vertical-align: 2px; }
+    .subcard { margin-top: 14px; padding: 15px; border: 1px solid #d8dee4; border-radius: 6px; background: #fff; }
+    .subcard > .section-head { margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > :first-child { flex: 1; }
+    .token-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; margin-top: 8px; }
+    .preview { position: sticky; top: 16px; }
+    .preview textarea { background: #f6f8fa; border: 1px solid #d0d7de; color: #24292f; min-height: 390px; max-height: 58vh; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 14px; tab-size: 2; }
+    .preview .card-head { margin-bottom: 14px; }
+    .preview .toolbar { margin-top: 12px; }
+    .notice { margin-top: 14px; border-radius: 6px; padding: 11px 13px; font-size: 12px; line-height: 1.5; }
+    .notice.error { color: #82071e; background: #ffebe9; border: 1px solid #ffcecb; }
+    .notice.warn { color: #633c01; background: #fff8c5; border: 1px solid #eed888; }
+    .notice.ok { color: #116329; background: #dafbe1; border: 1px solid #aceebb; }
+    .notice ul { margin: 6px 0 0; padding-left: 19px; }
+    .toast { position: fixed; right: 22px; bottom: 20px; z-index: 10; padding: 10px 14px; background: #24292f; color: #fff; border: 1px solid #57606a; border-radius: 6px; font-size: 13px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } .preview { position: static; } .preview textarea { max-height: none; } }
+    @media (max-width: 600px) { .hero { padding: 26px 20px; } .hero-badge { display: none; } .layout { padding: 16px 12px 36px; } .card { padding: 18px; } .grid { grid-template-columns: 1fr; } .token-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <div>
+        <p class="eyebrow">GitHub Backup · Config Builder</p>
+        <h1>Configuration Editor</h1>
+        <p>Configure sources, destinations, and filters. A ready-to-use config.json appears as you edit.</p>
+      </div>
+      <span class="hero-badge">Single page · No build</span>
+    </div>
+  </header>
+
+  <main id="app" v-cloak class="layout">
+    <div class="stack">
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Run settings</h2><p class="muted">Leave the cron expression empty to run once and exit.</p></div>
+          <div class="toolbar">
+            <button class="button" type="button" @click="$refs.importFile.click()">Import JSON</button>
+            <button class="button" type="button" @click="reset">Reset</button>
+            <input ref="importFile" type="file" accept=".json,application/json" hidden @change="importFile">
+          </div>
+        </div>
+        <div class="grid section">
+          <label class="field"><span>Cron expression</span><input v-model.trim="form.cron" placeholder="e.g. 0 2 * * *"><small class="hint">Use a five-field cron expression, or leave blank for a one-time run.</small></label>
+          <label class="field"><span>Deletion state file</span><input v-model.trim="form.stateFile" placeholder="Leave blank to use the default path"><small class="hint">Keep this file on persistent storage when using pre-delete checks.</small></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div><h2>Defaults</h2><p class="muted">Targets inherit fields left blank from these defaults.</p></div><span class="pill">default_conf</span></div>
+        <div class="grid section">
+          <label class="field"><span>GitHub Token</span><input v-model.trim="form.defaults.githubToken" :type="showSecrets ? 'text' : 'password'" autocomplete="off" placeholder="ghp_…"></label>
+          <label class="field"><span>Default destination owner</span><input v-model.trim="form.defaults.repoOwner" placeholder="Destination user or organization"></label>
+        </div>
+        <div class="section">
+          <div class="section-head"><h3>Default backup provider</h3></div>
+          <div class="grid">
+            <label class="field"><span>Type</span><select v-model="form.defaults.backup.type"><option value="none">Set per target</option><option value="gitea">Gitea mirror</option><option value="local">Local Git mirror</option></select></label>
+          </div>
+          <div v-if="form.defaults.backup.type === 'gitea'" class="grid section">
+            <label class="field"><span>Gitea URL</span><input v-model.trim="form.defaults.backup.host" placeholder="https://gitea.example.com"></label>
+            <label class="field"><span>Gitea API Token</span><input v-model.trim="form.defaults.backup.token" :type="showSecrets ? 'text' : 'password'" autocomplete="off"></label>
+            <label class="field"><span>Migration username</span><input v-model.trim="form.defaults.backup.authUsername" placeholder="Optional"></label>
+            <label class="field"><span>Migration token (legacy)</span><input v-model.trim="form.defaults.backup.authToken" :type="showSecrets ? 'text' : 'password'" autocomplete="off" placeholder="Optional; currently unused by the app"></label>
+          </div>
+          <div v-if="form.defaults.backup.type === 'local'" class="grid section">
+            <label class="field"><span>Local root directory</span><input v-model.trim="form.defaults.backup.root" placeholder="/data/github-backup"></label>
+            <div class="field"><span>Confirmation prompts</span><div class="checks"><label class="check"><input v-model="form.defaults.backup.questions" type="checkbox">Ask before migrating or deleting</label></div></div>
+            <label class="field"><span>Action (legacy)</span><select v-model="form.defaults.backup.action"><option value="">Default</option><option value="fetch">fetch</option><option value="pull">pull</option></select><small class="hint">Bare mirrors always update with fetch.</small></label>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-head"><h3>Default filters</h3></div>
+          <div class="grid">
+            <label class="field"><span>Unmatched repositories</span><select v-model="form.defaults.filter.action"><option value="ignore">Ignore</option><option value="ask">Ask before deleting</option><option value="delete">Delete automatically</option></select></label>
+            <label class="field"><span>Pre-delete check count</span><input v-model.number="form.defaults.filter.preDelete" type="number" min="0" step="1"></label>
+            <label class="field"><span>Allow rules</span><textarea v-model="form.defaults.filter.allow" placeholder="One regular expression per line"></textarea></label>
+            <label class="field"><span>Deny rules</span><textarea v-model="form.defaults.filter.deny" placeholder="One regular expression per line"></textarea></label>
+            <small class="hint full">Match owner/repo/private/fork/archived; booleans are 0 or 1. Deny rules take precedence.</small>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-head"><h3>Default repository-specific tokens</h3><button class="button" type="button" @click="form.defaults.tokens.push({rule:'', token:''})">Add rule</button></div>
+          <p class="muted">Assign clone tokens by repository pattern. A non-empty target mapping replaces the whole default mapping.</p>
+          <div v-for="(item, index) in form.defaults.tokens" :key="index" class="token-row">
+            <input v-model.trim="item.rule" :aria-label="'Default token rule ' + (index + 1)" placeholder="owner/repo/1/[01]/[01]">
+            <input v-model.trim="item.token" :aria-label="'Default token value ' + (index + 1)" :type="showSecrets ? 'text' : 'password'" autocomplete="off" placeholder="Token">
+            <button class="button danger" type="button" @click="form.defaults.tokens.splice(index, 1)">Remove</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div><h2>Backup targets</h2><p class="muted">Each target is a GitHub user or organization.</p></div><button class="button primary" type="button" @click="addTarget">Add target</button></div>
+        <div class="section">
+          <article v-for="(target, index) in form.targets" :key="target.id" class="target">
+            <div class="target-head"><div><span class="target-name">Target {{ index + 1 }}</span> <span v-if="target.owner" class="pill">{{ target.owner }}</span></div><button class="button danger" type="button" @click="form.targets.splice(index, 1)">Remove</button></div>
+            <div class="grid">
+              <label class="field"><span>GitHub Owner *</span><input v-model.trim="target.owner" placeholder="User or organization"></label>
+              <label class="field"><span>GitHub token for this target</span><input v-model.trim="target.token" :type="showSecrets ? 'text' : 'password'" autocomplete="off" placeholder="Leave blank to inherit the default token"></label>
+              <label class="field"><span>Destination owner</span><input v-model.trim="target.repoOwner" placeholder="Inherit the default or source owner"></label>
+              <div class="field"><span>Owner types</span><div class="checks"><label class="check"><input v-model="target.isOwnerOrg" type="checkbox">Source is an organization</label><label class="check"><input v-model="target.isRepoOwnerOrg" type="checkbox">Destination is an organization</label></div></div>
+            </div>
+            <div class="subcard">
+              <div class="section-head"><h3>Backup provider</h3></div>
+              <div class="grid"><label class="field"><span>Configuration source</span><select v-model="target.backupMode"><option value="inherit">Inherit defaults</option><option value="gitea">Configure Gitea here</option><option value="local">Configure local mirror here</option></select></label></div>
+              <div v-if="target.backupMode === 'gitea'" class="grid section">
+                <label class="field"><span>Gitea URL</span><input v-model.trim="target.backup.host" placeholder="https://gitea.example.com"></label>
+                <label class="field"><span>Gitea API Token</span><input v-model.trim="target.backup.token" :type="showSecrets ? 'text' : 'password'" autocomplete="off"></label>
+                <label class="field"><span>Migration username</span><input v-model.trim="target.backup.authUsername" placeholder="Optional"></label>
+                <label class="field"><span>Migration token (legacy)</span><input v-model.trim="target.backup.authToken" :type="showSecrets ? 'text' : 'password'" autocomplete="off" placeholder="Optional; currently unused by the app"></label>
+              </div>
+              <div v-if="target.backupMode === 'local'" class="grid section">
+                <label class="field"><span>Local root directory</span><input v-model.trim="target.backup.root" placeholder="/data/github-backup"></label>
+                <div class="field"><span>Confirmation prompts</span><div class="checks"><label class="check"><input v-model="target.backup.questions" type="checkbox">Ask before migrating or deleting</label></div></div>
+                <label class="field"><span>Action (legacy)</span><select v-model="target.backup.action"><option value="">Default</option><option value="fetch">fetch</option><option value="pull">pull</option></select><small class="hint">Bare mirrors always update with fetch.</small></label>
+              </div>
+            </div>
+            <div class="subcard">
+              <div class="section-head"><h3>Filters</h3><label class="check"><input v-model="target.filterOverride" type="checkbox">Override for this target</label></div>
+              <div v-if="target.filterOverride" class="grid">
+                <label class="field"><span>Unmatched repositories</span><select v-model="target.filter.action"><option value="">Inherit default action</option><option value="ignore">Ignore</option><option value="ask">Ask before deleting</option><option value="delete">Delete automatically</option></select></label>
+                <label class="field"><span>Pre-delete check count</span><input v-model.number="target.filter.preDelete" type="number" min="0" step="1" :disabled="!target.filter.action"><small class="hint">Inheriting the action also inherits the check count.</small></label>
+                <label class="field"><span>Allow rules</span><textarea v-model="target.filter.allow" placeholder="One per line; blank inherits default rules"></textarea></label>
+                <label class="field"><span>Deny rules</span><textarea v-model="target.filter.deny" placeholder="One per line; blank inherits default rules"></textarea></label>
+                <small class="hint full">Empty target rules inherit defaults, so an empty list cannot clear default rules.</small>
+              </div>
+            </div>
+            <div class="subcard">
+              <div class="section-head"><h3>Repository-specific tokens for this target</h3><button class="button" type="button" @click="target.tokens.push({rule:'', token:''})">Add rule</button></div>
+              <div v-for="(item, tokenIndex) in target.tokens" :key="tokenIndex" class="token-row">
+                <input v-model.trim="item.rule" :aria-label="'Target ' + (index + 1) + ' token rule ' + (tokenIndex + 1)" placeholder="Repository pattern">
+                <input v-model.trim="item.token" :aria-label="'Target ' + (index + 1) + ' token value ' + (tokenIndex + 1)" :type="showSecrets ? 'text' : 'password'" autocomplete="off" placeholder="Token">
+                <button class="button danger" type="button" @click="target.tokens.splice(tokenIndex, 1)">Remove</button>
+              </div>
+              <p v-if="!target.tokens.length" class="muted">Inherits the default mapping when empty.</p>
+            </div>
+          </article>
+          <p v-if="!form.targets.length" class="muted">No targets yet. Select “Add target” to begin.</p>
+        </div>
+      </section>
+    </div>
+
+    <aside class="card preview">
+      <div class="card-head"><div><h2>JSON preview</h2><p class="muted">Updates as you edit. Copy and download always include full tokens.</p></div><span class="pill">config.json</span></div>
+      <label class="check"><input v-model="showSecrets" type="checkbox">Show tokens in fields and preview</label>
+      <textarea :value="previewJSON" readonly spellcheck="false" aria-label="Generated JSON configuration"></textarea>
+      <div class="toolbar">
+        <button class="button primary" type="button" :disabled="errors.length > 0" @click="copyJSON">Copy full JSON</button>
+        <button class="button" type="button" :disabled="errors.length > 0" @click="downloadJSON">Download config.json</button>
+      </div>
+      <div v-if="errors.length" class="notice error"><strong>Complete the configuration first</strong><ul><li v-for="item in errors" :key="item">{{ item }}</li></ul></div>
+      <div v-else class="notice ok">Configuration looks ready to copy or download.</div>
+      <div v-if="warnings.length" class="notice warn"><strong>Notes</strong><ul><li v-for="item in warnings" :key="item">{{ item }}</li></ul></div>
+      <p class="muted">The form is not saved automatically. Exported files contain plain-text tokens.</p>
+    </aside>
+    <div v-if="toast" class="toast" role="status">{{ toast }}</div>
+  </main>
+
+  <script src="https://unpkg.com/vue@3.5.42/dist/vue.global.prod.js"></script>
+  <script>
+    const { createApp } = Vue;
+    let nextId = 1;
+    const blankBackup = (type = 'gitea') => ({ type, host: '', token: '', authUsername: '', authToken: '', root: '', questions: false, action: '' });
+    const blankFilter = (action = 'ignore') => ({ action, preDelete: 0, allow: '', deny: '' });
+    const blankTarget = () => ({ id: nextId++, owner: '', token: '', isOwnerOrg: false, repoOwner: '', isRepoOwnerOrg: false, backupMode: 'inherit', backup: blankBackup(), filterOverride: false, filter: blankFilter(''), tokens: [] });
+    const blankForm = () => ({ cron: '', stateFile: '', defaults: { githubToken: '', repoOwner: '', backup: blankBackup(), filter: blankFilter(), tokens: [] }, targets: [blankTarget()] });
+    const lines = value => String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const tokenMap = entries => Object.fromEntries(entries.filter(item => item.rule && item.token).map(item => [item.rule, item.token]));
+    function buildBackup(model, type = model.type) {
+      if (type === 'gitea') {
+        const config = { host: model.host, token: model.token, auth_username: model.authUsername };
+        if (model.authToken) config.auth_token = model.authToken;
+        return { type, config };
+      }
+      if (type === 'local') {
+        const config = { root: model.root, questions: model.questions };
+        if (model.action) config.action = model.action;
+        return { type, config };
+      }
+      return null;
+    }
+    function buildFilter(model, isDefault = false) {
+      const result = { allow_rule: lines(model.allow), deny_rule: lines(model.deny) };
+      if (model.action || isDefault) {
+        result.unmatched_repo_action = model.action || 'ignore';
+        result.pre_delete_check_count = Number(model.preDelete) || 0;
+      }
+      return result;
+    }
+    function normalizeBackup(raw) {
+      const config = raw && raw.config && typeof raw.config === 'object' ? raw.config : {};
+      return { type: raw?.type || 'gitea', host: String(config.host || ''), token: String(config.token || ''), authUsername: String(config.auth_username || ''), authToken: String(config.auth_token || ''), root: String(config.root || ''), questions: Boolean(config.questions), action: String(config.action || '') };
+    }
+    function normalizeFilter(raw, fallbackAction = 'ignore') {
+      const entries = value => Array.isArray(value) ? value.filter(item => typeof item === 'string').join('\n') : '';
+      return { action: raw?.unmatched_repo_action || fallbackAction, preDelete: Number(raw?.pre_delete_check_count) || 0, allow: entries(raw?.allow_rule), deny: entries(raw?.deny_rule) };
+    }
+    function normalizeTokens(raw) {
+      return raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.entries(raw).map(([rule, token]) => ({ rule, token: String(token ?? '') })) : [];
+    }
+    function normalizeTarget(raw) {
+      return { id: nextId++, owner: String(raw.owner || ''), token: String(raw.token || ''), isOwnerOrg: Boolean(raw.is_owner_org), repoOwner: String(raw.repo_owner || ''), isRepoOwnerOrg: Boolean(raw.is_repo_owner_org), backupMode: raw.backup?.type || 'inherit', backup: normalizeBackup(raw.backup), filterOverride: Boolean(raw.filter), filter: normalizeFilter(raw.filter, ''), tokens: normalizeTokens(raw.specific_github_token) };
+    }
+    function redact(value) {
+      const copy = JSON.parse(JSON.stringify(value));
+      function visit(object) {
+        if (!object || typeof object !== 'object') return;
+        for (const [key, item] of Object.entries(object)) {
+          if (key === 'specific_github_token' && item && typeof item === 'object') {
+            for (const rule of Object.keys(item)) item[rule] = '••••••••';
+          } else if (['token', 'github_token', 'auth_token'].includes(key) && item) {
+            object[key] = '••••••••';
+          } else visit(item);
+        }
+      }
+      visit(copy);
+      return copy;
+    }
+    createApp({
+      data() { return { form: blankForm(), showSecrets: false, toast: '', toastTimer: null }; },
+      computed: {
+        config() {
+          const defaults = this.form.defaults;
+          const defaultConf = { github_token: defaults.githubToken, repo_owner: defaults.repoOwner, filter: buildFilter(defaults.filter, true) };
+          if (defaults.backup.type !== 'none') defaultConf.backup = buildBackup(defaults.backup);
+          if (defaults.tokens.length) defaultConf.specific_github_token = tokenMap(defaults.tokens);
+          const targets = this.form.targets.map(target => {
+            const result = { owner: target.owner, is_owner_org: target.isOwnerOrg, is_repo_owner_org: target.isRepoOwnerOrg };
+            if (target.token) result.token = target.token;
+            if (target.repoOwner) result.repo_owner = target.repoOwner;
+            if (target.backupMode !== 'inherit') result.backup = buildBackup(target.backup, target.backupMode);
+            if (target.filterOverride) result.filter = buildFilter(target.filter);
+            if (target.tokens.length) result.specific_github_token = tokenMap(target.tokens);
+            return result;
+          });
+          const result = { default_conf: defaultConf, targets };
+          if (this.form.cron) result.cron = this.form.cron;
+          if (this.form.stateFile) result.state_file = this.form.stateFile;
+          return result;
+        },
+        fullJSON() { return JSON.stringify(this.config, null, 2); },
+        previewJSON() { return JSON.stringify(this.showSecrets ? this.config : redact(this.config), null, 2); },
+        errors() {
+          const problems = [];
+          if (!this.form.targets.length) problems.push('Add at least one backup target.');
+          const defaults = this.form.defaults;
+          this.form.targets.forEach((target, index) => {
+            const label = `Target ${index + 1}`;
+            if (!target.owner) problems.push(`${label}: enter a GitHub owner.`);
+            if (!(target.token || defaults.githubToken)) problems.push(`${label}: enter a GitHub token or a default token.`);
+            const type = target.backupMode === 'inherit' ? defaults.backup.type : target.backupMode;
+            const backup = target.backupMode === 'inherit' ? defaults.backup : target.backup;
+            if (type === 'none') problems.push(`${label}: select a backup provider.`);
+            if (type === 'gitea' && (!backup.host || !backup.token)) problems.push(`${label}: enter the Gitea URL and API token.`);
+            if (type === 'local' && !backup.root) problems.push(`${label}: enter a local root directory.`);
+            const filter = target.filterOverride ? target.filter : defaults.filter;
+            if (filter.action && (!Number.isInteger(Number(filter.preDelete)) || Number(filter.preDelete) < 0)) problems.push(`${label}: pre-delete check count must be a non-negative integer.`);
+            target.tokens.forEach((item, tokenIndex) => { if (!item.rule || !item.token) problems.push(`${label}: complete token rule ${tokenIndex + 1}.`); });
+          });
+          if (!Number.isInteger(Number(defaults.filter.preDelete)) || Number(defaults.filter.preDelete) < 0) problems.push('Default pre-delete check count must be a non-negative integer.');
+          defaults.tokens.forEach((item, index) => { if (!item.rule || !item.token) problems.push(`Complete default token rule ${index + 1}.`); });
+          return problems;
+        },
+        warnings() {
+          const notes = [];
+          if (this.form.cron && [this.form.defaults.filter.action, ...this.form.targets.filter(item => item.filterOverride).map(item => item.filter.action)].includes('ask')) notes.push('In cron mode, ask cannot prompt for confirmation, so unmatched repositories are not deleted.');
+          if ([this.form.defaults.filter, ...this.form.targets.filter(item => item.filterOverride).map(item => item.filter)].some(item => item.action === 'delete' && Number(item.preDelete) === 0)) notes.push('Automatic deletion with zero pre-delete checks may remove unmatched destination repositories on the first run.');
+          return notes;
+        }
+      },
+      methods: {
+        addTarget() { this.form.targets.push(blankTarget()); },
+        reset() { if (window.confirm('Clear the current form and start over?')) { this.form = blankForm(); this.flash('Form reset'); } },
+        flash(message) { this.toast = message; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; }, 3000); },
+        async importFile(event) {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          try {
+            const raw = JSON.parse(await file.text());
+            if (!raw || !Array.isArray(raw.targets)) throw new Error('The file has no targets array');
+            const allowed = type => !type || ['gitea', 'local'].includes(type);
+            if (!allowed(raw.default_conf?.backup?.type) || raw.targets.some(item => !item || !allowed(item.backup?.type))) throw new Error('The file contains an unsupported backup provider');
+            const defaults = raw.default_conf || {};
+            this.form = { cron: String(raw.cron || ''), stateFile: String(raw.state_file || ''), defaults: { githubToken: String(defaults.github_token || ''), repoOwner: String(defaults.repo_owner || ''), backup: defaults.backup ? normalizeBackup(defaults.backup) : blankBackup('none'), filter: normalizeFilter(defaults.filter), tokens: normalizeTokens(defaults.specific_github_token) }, targets: raw.targets.map(normalizeTarget) };
+            this.flash(`Imported ${this.form.targets.length} target(s)`);
+          } catch (error) { this.flash(`Import failed: ${error.message}`); }
+        },
+        async copyJSON() {
+          try {
+            if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(this.fullJSON);
+            else {
+              const input = document.createElement('textarea');
+              input.value = this.fullJSON; document.body.appendChild(input); input.select();
+              if (!document.execCommand('copy')) throw new Error('The browser blocked clipboard access');
+              input.remove();
+            }
+            this.flash('Full JSON copied');
+          } catch (error) { this.flash(`Copy failed: ${error.message}`); }
+        },
+        downloadJSON() {
+          const url = URL.createObjectURL(new Blob([this.fullJSON + '\n'], { type: 'application/json;charset=utf-8' }));
+          const link = document.createElement('a'); link.href = url; link.download = 'config.json'; link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          this.flash('Downloaded config.json');
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
