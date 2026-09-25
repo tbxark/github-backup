@@ -5,6 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
+StateDirectory=github-backup
+Environment=GITHUB_BACKUP_STATE_FILE=/var/lib/github-backup/delete-state.json
 LimitNOFILE=32768
 ExecStart=/usr/local/bin/github-backup --config=/etc/github-backup/config.json
 

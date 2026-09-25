@@ -32,3 +32,4 @@ build/
 .vscode
 backup/
 /log.json
+/code_review

@@ -1,7 +1,14 @@
 package config
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 
 	"github.com/go-sphere/confstore"
 	"github.com/go-sphere/confstore/codec"
@@ -57,42 +64,46 @@ type FilterConfig struct {
 }
 
 func (c *GithubConfig) MergeDefault(defaultConf *DefaultConfig) {
-	if defaultConf == nil {
-		return
-	}
-	if c.Token == "" {
-		c.Token = defaultConf.GithubToken
-	}
-	if c.RepoOwner == "" {
-		c.RepoOwner = defaultConf.RepoOwner
+	if defaultConf != nil {
+		if c.Token == "" {
+			c.Token = defaultConf.GithubToken
+		}
+		if c.RepoOwner == "" {
+			c.RepoOwner = defaultConf.RepoOwner
+		}
+		if c.Backup == nil {
+			c.Backup = defaultConf.Backup
+		}
+		if c.Filter == nil && defaultConf.Filter != nil {
+			filter := *defaultConf.Filter
+			filter.AllowRule = slices.Clone(filter.AllowRule)
+			filter.DenyRule = slices.Clone(filter.DenyRule)
+			c.Filter = &filter
+		}
+		if len(c.SpecificGithubToken) == 0 {
+			c.SpecificGithubToken = defaultConf.SpecificGithubToken
+		}
 	}
 	if c.RepoOwner == "" {
 		c.RepoOwner = c.Owner
 	}
-	if c.Backup == nil {
-		c.Backup = defaultConf.Backup
-	}
 	if c.Filter == nil {
-		c.Filter = defaultConf.Filter
-		if c.Filter == nil {
-			c.Filter = &FilterConfig{}
+		c.Filter = &FilterConfig{}
+	}
+	if defaultConf != nil && defaultConf.Filter != nil {
+		if c.Filter.UnmatchedRepoAction == "" {
+			c.Filter.UnmatchedRepoAction = defaultConf.Filter.UnmatchedRepoAction
+			c.Filter.PreDeleteCheckCount = defaultConf.Filter.PreDeleteCheckCount
+		}
+		if len(c.Filter.AllowRule) == 0 {
+			c.Filter.AllowRule = slices.Clone(defaultConf.Filter.AllowRule)
+		}
+		if len(c.Filter.DenyRule) == 0 {
+			c.Filter.DenyRule = slices.Clone(defaultConf.Filter.DenyRule)
 		}
 	}
 	if c.Filter.UnmatchedRepoAction == "" {
-		c.Filter.UnmatchedRepoAction = defaultConf.Filter.UnmatchedRepoAction
-		c.Filter.PreDeleteCheckCount = defaultConf.Filter.PreDeleteCheckCount
-		if c.Filter.UnmatchedRepoAction == "" {
-			c.Filter.UnmatchedRepoAction = UnmatchedRepoActionIgnore
-		}
-	}
-	if len(c.Filter.AllowRule) == 0 {
-		c.Filter.AllowRule = defaultConf.Filter.AllowRule
-	}
-	if len(c.Filter.DenyRule) == 0 {
-		c.Filter.DenyRule = defaultConf.Filter.DenyRule
-	}
-	if len(c.SpecificGithubToken) == 0 {
-		c.SpecificGithubToken = defaultConf.SpecificGithubToken
+		c.Filter.UnmatchedRepoAction = UnmatchedRepoActionIgnore
 	}
 }
 
@@ -100,11 +111,15 @@ type SyncConfig struct {
 	DefaultConf *DefaultConfig  `json:"default_conf"`
 	Targets     []*GithubConfig `json:"targets"`
 	Cron        string          `json:"cron"`
+	StateFile   string          `json:"state_file"`
 }
 
 func Convert[T any](raw json.RawMessage) (*T, error) {
+	if len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return nil, errors.New("provider config is empty")
+	}
 	conf := new(T)
-	err := json.Unmarshal(raw, &conf)
+	err := json.Unmarshal(raw, conf)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +150,20 @@ func NewConfig(path string) (*SyncConfig, error) {
 	config, err := confstore.Load[SyncConfig](prov, codec.JsonCodec())
 	if err != nil {
 		return nil, err
+	}
+	if config.StateFile == "" {
+		if override := os.Getenv("GITHUB_BACKUP_STATE_FILE"); override != "" {
+			config.StateFile = override
+		} else if file.IsLocalPath(path) {
+			config.StateFile = path + ".state.json"
+		} else {
+			stateDir, err := os.UserConfigDir()
+			if err != nil {
+				return nil, fmt.Errorf("find state directory: %w", err)
+			}
+			hash := sha256.Sum256([]byte(path))
+			config.StateFile = filepath.Join(stateDir, "github-backup", fmt.Sprintf("state-%x.json", hash[:8]))
+		}
 	}
 	return config, nil
 }

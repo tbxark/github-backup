@@ -4,5 +4,8 @@ services:
     pull_policy: always
     volumes:
       - ./config.json:/config.json
+      - ./state:/state
+    environment:
+      GITHUB_BACKUP_STATE_FILE: /state/delete-state.json
     restart: always
     command: ["--config", "/config.json"]

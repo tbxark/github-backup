@@ -1,11 +1,13 @@
 package local
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/tbxark/github-backup/provider/provider"
 )
@@ -56,11 +58,14 @@ func (l *Local) MigrateRepo(from *provider.Owner, to *provider.Owner, repo *prov
 	if l.conf.Questions && !question(fmt.Sprintf("Are you sure you want to migrate %s/%s to %s/%s? [y/n]: ", from.Name, repo.Name, to.Name, repo.Name)) {
 		return "skip", nil
 	}
+	if l.conf.Action != "" && l.conf.Action != UpdateActionPull && l.conf.Action != UpdateActionFetch {
+		return "", fmt.Errorf("unsupported action: %s", l.conf.Action)
+	}
 	ownerPath := filepath.Join(l.conf.Root, to.Name)
 	_, err := os.Stat(ownerPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if e := os.MkdirAll(ownerPath, os.ModePerm); e != nil {
+			if e := os.MkdirAll(ownerPath, 0700); e != nil {
 				return "", e
 			}
 		} else {
@@ -69,20 +74,27 @@ func (l *Local) MigrateRepo(from *provider.Owner, to *provider.Owner, repo *prov
 	}
 	repoPath := filepath.Join(ownerPath, repo.Name)
 	_, err = os.Stat(repoPath)
-	gitUrl := fmt.Sprintf("git@github.com:%s/%s.git", from.Name, repo.Name)
+	gitURL := fmt.Sprintf("https://github.com/%s/%s.git", from.Name, repo.Name)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = gitClone(gitUrl, repoPath)
-			if err != nil {
-				return "success", err
+			if err := gitCloneMirror(gitURL, ownerPath, repoPath, repo.AuthToken); err != nil {
+				return "", err
 			}
+			return "success", nil
 		} else {
 			return "", err
 		}
+	} else {
+		bare, err := isBareRepository(repoPath)
+		if err != nil {
+			return "", err
+		}
+		if !bare {
+			return "", fmt.Errorf("%s is a legacy working-tree clone; move it aside before creating a mirror backup", repoPath)
+		}
 	}
-	err = gitUpdateLocal(repoPath, l.conf.Action)
-	if err != nil {
-		return "fail", err
+	if err := gitFetchMirror(repoPath, repo.AuthToken); err != nil {
+		return "", err
 	}
 	return "success", nil
 }
@@ -100,30 +112,76 @@ func (l *Local) DeleteRepo(owner, repo string) (string, error) {
 }
 
 func isGitRepository(path string) bool {
-	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
-	cmd.Dir = path
-	err := cmd.Run()
-	return err == nil
-}
-
-func gitClone(url, path string) error {
-	log.Printf("cloning %s", url)
-	cmd := exec.Command("git", "clone", url, path)
-	return cmd.Run()
-}
-
-func gitUpdateLocal(path string, action UpdateAction) error {
-	log.Printf("%s %s", action, path)
-	if action != UpdateActionPull && action != UpdateActionFetch {
-		return fmt.Errorf("unsupported action: %s", action)
+	bare, err := isBareRepository(path)
+	if err != nil {
+		return false
 	}
-	cmd := exec.Command("git", string(action), "--all")
+	arg := "--show-toplevel"
+	if bare {
+		arg = "--absolute-git-dir"
+	}
+	cmd := exec.Command("git", "rev-parse", arg)
 	cmd.Dir = path
-	err := cmd.Run()
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	return err == nil && filepath.Clean(strings.TrimSpace(string(output))) == resolvedPath
+}
+
+func isBareRepository(path string) (bool, error) {
+	cmd := exec.Command("git", "rev-parse", "--is-bare-repository")
+	cmd.Dir = path
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("inspect Git repository %s: %w", path, err)
+	}
+	return strings.TrimSpace(string(output)) == "true", nil
+}
+
+func gitCloneMirror(url, ownerPath, path, token string) error {
+	log.Printf("cloning mirror %s", url)
+	tmp, err := os.MkdirTemp(ownerPath, ".github-backup-*")
 	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(tmp)
+	mirrorPath := filepath.Join(tmp, "mirror")
+	cmd := exec.Command("git", "clone", "--mirror", url, mirrorPath)
+	cmd.Env = gitEnvironment(token)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("clone mirror: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return os.Rename(mirrorPath, path)
+}
+
+func gitFetchMirror(path, token string) error {
+	log.Printf("fetching mirror %s", path)
+	cmd := exec.Command("git", "remote", "update", "--prune", "origin")
+	cmd.Dir = path
+	cmd.Env = gitEnvironment(token)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("update mirror: %w: %s", err, strings.TrimSpace(string(output)))
+	}
 	return nil
+}
+
+func gitEnvironment(token string) []string {
+	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	if token != "" {
+		credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+		env = append(env,
+			"GIT_CONFIG_COUNT=1",
+			"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
+			"GIT_CONFIG_VALUE_0=Authorization: Basic "+credentials,
+		)
+	}
+	return env
 }
 
 func question(message string) bool {

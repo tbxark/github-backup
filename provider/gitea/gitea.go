@@ -1,7 +1,9 @@
 package gitea
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/tbxark/github-backup/provider/provider"
@@ -68,6 +70,24 @@ func (g *Gitea) LoadRepos(owner *provider.Owner) ([]string, error) {
 }
 
 func (g *Gitea) MigrateRepo(from *provider.Owner, to *provider.Owner, repo *provider.Repo) (string, error) {
+	cloneAddr := fmt.Sprintf("https://github.com/%s/%s.git", from.Name, repo.Name)
+	repoURL := fmt.Sprintf("%s/repos/%s/%s", g.conf.Host, to.Name, repo.Name)
+	existing, err := request.GET[repoDetails](repoURL, g.requestModifier()...)
+	if err == nil {
+		if !existing.Mirror || !strings.EqualFold(strings.TrimSuffix(existing.OriginalURL, ".git"), strings.TrimSuffix(cloneAddr, ".git")) {
+			return "", fmt.Errorf("destination %s/%s exists but is not a mirror of %s", to.Name, repo.Name, cloneAddr)
+		}
+		resp, err := request.Request(http.MethodPost, repoURL+"/mirror-sync", g.requestModifier()...)
+		if err != nil {
+			return "", fmt.Errorf("sync mirror %s/%s: %w", to.Name, repo.Name, err)
+		}
+		_ = resp.Body.Close()
+		return "synced", nil
+	}
+	var statusErr *request.StatusError
+	if !errors.As(err, &statusErr) || statusErr.Code != http.StatusNotFound {
+		return "", fmt.Errorf("check destination %s/%s: %w", to.Name, repo.Name, err)
+	}
 	r := migrateRequest{
 		RepoOwner:   to.Name,
 		RepoName:    repo.Name,
@@ -79,7 +99,7 @@ func (g *Gitea) MigrateRepo(from *provider.Owner, to *provider.Owner, repo *prov
 
 		MirrorInterval: "10m0s",
 		Service:        "github",
-		CloneAddr:      fmt.Sprintf("https://github.com/%s/%s.git", from.Name, repo.Name),
+		CloneAddr:      cloneAddr,
 		Mirror:         true,
 	}
 	url := fmt.Sprintf("%s/repos/migrate", g.conf.Host)
@@ -96,6 +116,7 @@ func (g *Gitea) DeleteRepo(owner, repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer func() { _ = resp.Body.Close() }()
 	return resp.Status, nil
 }
 
@@ -119,4 +140,10 @@ type reposQuery struct {
 	Owner struct {
 		Login string `json:"login"`
 	} `json:"owner"`
+}
+
+type repoDetails struct {
+	Name        string `json:"name"`
+	Mirror      bool   `json:"mirror"`
+	OriginalURL string `json:"original_url"`
 }

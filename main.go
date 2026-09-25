@@ -34,13 +34,15 @@ func main() {
 	syncTask := NewTask(data)
 	if data.Cron != "" {
 		syncTask.Interactive = false
-		task := cron.New()
+		task := cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DefaultLogger)))
 		_, e := task.AddJob(data.Cron, syncTask)
 		if e != nil {
 			log.Fatalf("add cron task error: %s", e.Error())
 		}
 		task.Run()
 	} else {
-		syncTask.Run()
+		if err := syncTask.RunOnce(); err != nil {
+			log.Fatalf("backup failed: %s", err)
+		}
 	}
 }

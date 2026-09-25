@@ -30,11 +30,10 @@
       "token": "GITHUB_TOKEN",
       "repo_owner": "BACKUP_TARGET_REPO_OWNER",
       "backup": {
-        "type": "file",
+        "type": "local",
         "config": {
-          "dir": "SAVE_DIR",
-          "history": "FILE_HISTORY_JSON_PATH",
-          "debug": false
+          "root": "SAVE_DIR",
+          "questions": false
         }
       },
       "filter": {
