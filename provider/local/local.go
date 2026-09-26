@@ -27,6 +27,18 @@ type Config struct {
 	Action    UpdateAction `json:"action"`
 }
 
+func (c *Config) Validate() error {
+	if c == nil || strings.TrimSpace(c.Root) == "" {
+		return fmt.Errorf("local backup root is empty")
+	}
+	switch c.Action {
+	case "", UpdateActionPull, UpdateActionFetch:
+		return nil
+	default:
+		return fmt.Errorf("unsupported local action %q", c.Action)
+	}
+}
+
 var _ provider.Provider = &Local{}
 
 type Local struct {
@@ -54,8 +66,17 @@ func (l *Local) DestinationID() string {
 }
 
 func (l *Local) LoadRepos(ctx context.Context, owner *provider.Owner) ([]string, error) {
-	ownerPath := filepath.Join(l.conf.Root, owner.Name)
+	if err := l.conf.Validate(); err != nil {
+		return nil, err
+	}
+	ownerPath, err := l.ownerPath(owner.Name)
+	if err != nil {
+		return nil, err
+	}
 	dirEntries, err := os.ReadDir(ownerPath)
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +86,16 @@ func (l *Local) LoadRepos(ctx context.Context, owner *provider.Owner) ([]string,
 			return nil, err
 		}
 		if dirEntry.IsDir() {
-			if !isGitRepository(ctx, filepath.Join(ownerPath, dirEntry.Name())) {
+			repoPath, err := l.repoPath(owner.Name, dirEntry.Name())
+			if err != nil {
+				return nil, err
+			}
+			if !isGitRepository(ctx, repoPath) {
 				log.Printf("skipping non-git dir %s/%s", owner.Name, dirEntry.Name())
+				continue
+			}
+			if !isManagedRepo(ctx, repoPath, dirEntry.Name()) {
+				log.Printf("skipping unmanaged repo %s/%s", owner.Name, dirEntry.Name())
 				continue
 			}
 			repos = append(repos, dirEntry.Name())
@@ -76,6 +105,9 @@ func (l *Local) LoadRepos(ctx context.Context, owner *provider.Owner) ([]string,
 }
 
 func (l *Local) MigrateRepo(ctx context.Context, from *provider.Owner, to *provider.Owner, repo *provider.Repo) (string, error) {
+	if err := l.conf.Validate(); err != nil {
+		return "", err
+	}
 	if l.conf.Questions {
 		if !l.interactive {
 			return "", fmt.Errorf("confirmation required to migrate %s/%s in non-interactive mode", from.Name, repo.Name)
@@ -84,11 +116,11 @@ func (l *Local) MigrateRepo(ctx context.Context, from *provider.Owner, to *provi
 			return "skip", nil
 		}
 	}
-	if l.conf.Action != "" && l.conf.Action != UpdateActionPull && l.conf.Action != UpdateActionFetch {
-		return "", fmt.Errorf("unsupported action: %s", l.conf.Action)
+	ownerPath, err := l.ownerPath(to.Name)
+	if err != nil {
+		return "", err
 	}
-	ownerPath := filepath.Join(l.conf.Root, to.Name)
-	_, err := os.Stat(ownerPath)
+	_, err = os.Stat(ownerPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			if e := os.MkdirAll(ownerPath, 0700); e != nil {
@@ -98,16 +130,16 @@ func (l *Local) MigrateRepo(ctx context.Context, from *provider.Owner, to *provi
 			return "", err
 		}
 	}
-	repoPath := filepath.Join(ownerPath, repo.Name)
+	repoPath, err := l.repoPath(to.Name, repo.Name)
+	if err != nil {
+		return "", err
+	}
 	_, err = os.Stat(repoPath)
 	gitURL := fmt.Sprintf("https://github.com/%s/%s.git", from.Name, repo.Name)
 	if err != nil {
 		if os.IsNotExist(err) {
-			clone := gitCloneMirror
-			if l.conf.Action != "" {
-				clone = gitCloneWorktree
-			}
-			if err := clone(ctx, gitURL, ownerPath, repoPath, repo.AuthToken); err != nil {
+			mark := func(path string) error { return markManagedRepo(ctx, path, from.Name, repo.Name) }
+			if err := cloneRepository(ctx, gitURL, ownerPath, repoPath, repo.AuthToken, l.conf.Action == "", mark); err != nil {
 				return "", err
 			}
 			return "success", nil
@@ -145,6 +177,16 @@ func (l *Local) MigrateRepo(ctx context.Context, from *provider.Owner, to *provi
 }
 
 func (l *Local) DeleteRepo(ctx context.Context, owner, repo string) (string, error) {
+	if err := l.conf.Validate(); err != nil {
+		return "", err
+	}
+	repoPath, err := l.repoPath(owner, repo)
+	if err != nil {
+		return "", err
+	}
+	if !isGitRepository(ctx, repoPath) || !isManagedRepo(ctx, repoPath, repo) {
+		return "", fmt.Errorf("refusing to delete unmanaged repo %s/%s", owner, repo)
+	}
 	if l.conf.Questions {
 		if !l.interactive {
 			return "", fmt.Errorf("confirmation required to delete %s/%s in non-interactive mode", owner, repo)
@@ -156,8 +198,7 @@ func (l *Local) DeleteRepo(ctx context.Context, owner, repo string) (string, err
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	repoPath := filepath.Join(l.conf.Root, owner, repo)
-	err := os.RemoveAll(repoPath)
+	err = os.RemoveAll(repoPath)
 	if err != nil {
 		return "fail", err
 	}
@@ -257,19 +298,7 @@ func githubRepoID(remote string) (string, bool) {
 }
 
 func gitCloneWorktree(ctx context.Context, url, ownerPath, path, token string) error {
-	log.Printf("cloning working tree %s", url)
-	tmp, err := os.MkdirTemp(ownerPath, ".github-backup-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmp)
-	clonePath := filepath.Join(tmp, "clone")
-	cmd := exec.CommandContext(ctx, "git", "clone", url, clonePath)
-	cmd.Env = gitEnvironment(token)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("clone working tree: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return os.Rename(clonePath, path)
+	return cloneRepository(ctx, url, ownerPath, path, token, false, nil)
 }
 
 func gitUpdateWorktree(ctx context.Context, path, token string, action UpdateAction) error {
@@ -284,19 +313,35 @@ func gitUpdateWorktree(ctx context.Context, path, token string, action UpdateAct
 }
 
 func gitCloneMirror(ctx context.Context, url, ownerPath, path, token string) error {
-	log.Printf("cloning mirror %s", url)
+	return cloneRepository(ctx, url, ownerPath, path, token, true, nil)
+}
+
+func cloneRepository(ctx context.Context, url, ownerPath, path, token string, mirror bool, mark func(string) error) error {
+	kind := "working tree"
+	args := []string{"clone"}
+	if mirror {
+		kind = "mirror"
+		args = append(args, "--mirror")
+	}
+	log.Printf("cloning %s %s", kind, url)
 	tmp, err := os.MkdirTemp(ownerPath, ".github-backup-*")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	mirrorPath := filepath.Join(tmp, "mirror")
-	cmd := exec.CommandContext(ctx, "git", "clone", "--mirror", url, mirrorPath)
+	clonePath := filepath.Join(tmp, "clone")
+	args = append(args, url, clonePath)
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = gitEnvironment(token)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("clone mirror: %w: %s", err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("clone %s: %w: %s", kind, err, strings.TrimSpace(string(output)))
 	}
-	return os.Rename(mirrorPath, path)
+	if mark != nil {
+		if err := mark(clonePath); err != nil {
+			return err
+		}
+	}
+	return os.Rename(clonePath, path)
 }
 
 func gitFetchMirror(ctx context.Context, path, token string) error {

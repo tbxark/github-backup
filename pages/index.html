@@ -131,7 +131,7 @@
           <div v-if="form.defaults.backup.type === 'local'" class="grid section">
             <label class="field"><span>Local root directory</span><input v-model.trim="form.defaults.backup.root" placeholder="/data/github-backup"></label>
             <div class="field"><span>Confirmation prompts</span><div class="checks"><label class="check"><input v-model="form.defaults.backup.questions" type="checkbox">Ask before migrating or deleting</label></div></div>
-            <label class="field"><span>Local update mode</span><select v-model="form.defaults.backup.action"><option value="">Bare mirror (default)</option><option value="fetch">Working tree: fetch</option><option value="pull">Working tree: pull</option></select><small class="hint">Existing bare mirrors always fetch. Set pull or fetch to keep working-tree clones updated.</small></label>
+            <label class="field"><span>Local update mode</span><select v-model="form.defaults.backup.action"><option value="">Bare mirror (default)</option><option value="fetch">Working tree: fetch</option><option value="pull">Working tree: pull</option></select><small class="hint">Existing bare mirrors always fetch. Set pull or fetch to keep working-tree clones updated. Only new clones created by this tool are eligible for automatic local deletion.</small></label>
           </div>
         </div>
         <div class="section">
@@ -141,7 +141,7 @@
             <label class="field"><span>Pre-delete check count</span><input v-model.number="form.defaults.filter.preDelete" type="number" min="0" step="1"></label>
             <label class="field"><span>Allow rules</span><textarea v-model="form.defaults.filter.allow" placeholder="One regular expression per line"></textarea></label>
             <label class="field"><span>Deny rules</span><textarea v-model="form.defaults.filter.deny" placeholder="One regular expression per line"></textarea></label>
-            <small class="hint full">Match owner/repo/private/fork/archived; booleans are 0 or 1. Deny rules take precedence.</small>
+            <small class="hint full">Match owner/repo/private/fork/archived; booleans are 0 or 1. Deny rules take precedence. Deletion pauses if GitHub returns no repositories or its list shrinks by more than half.</small>
           </div>
         </div>
         <div class="section">
@@ -178,7 +178,7 @@
               <div v-if="target.backupMode === 'local'" class="grid section">
                 <label class="field"><span>Local root directory</span><input v-model.trim="target.backup.root" placeholder="/data/github-backup"></label>
                 <div class="field"><span>Confirmation prompts</span><div class="checks"><label class="check"><input v-model="target.backup.questions" type="checkbox">Ask before migrating or deleting</label></div></div>
-                <label class="field"><span>Local update mode</span><select v-model="target.backup.action"><option value="">Bare mirror (default)</option><option value="fetch">Working tree: fetch</option><option value="pull">Working tree: pull</option></select><small class="hint">Existing bare mirrors always fetch. Set pull or fetch to keep working-tree clones updated.</small></label>
+                <label class="field"><span>Local update mode</span><select v-model="target.backup.action"><option value="">Bare mirror (default)</option><option value="fetch">Working tree: fetch</option><option value="pull">Working tree: pull</option></select><small class="hint">Existing bare mirrors always fetch. Set pull or fetch to keep working-tree clones updated. Only new clones created by this tool are eligible for automatic local deletion.</small></label>
               </div>
             </div>
             <div class="subcard">

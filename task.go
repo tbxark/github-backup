@@ -31,10 +31,16 @@ func BuildBackupProvider(conf *config.BackupProviderConfig) (provider.Provider, 
 		if err != nil {
 			return nil, err
 		}
+		if err := c.Validate(); err != nil {
+			return nil, err
+		}
 		return gitea.NewGitea(c), nil
 	case config.BackupProviderConfigTypeLocal:
 		c, err := config.Convert[local.Config](conf.Config)
 		if err != nil {
+			return nil, err
+		}
+		if err := c.Validate(); err != nil {
 			return nil, err
 		}
 		return local.NewLocal(c), nil
@@ -65,12 +71,17 @@ func NewTask(conf *config.SyncConfig) *SyncTask {
 	}
 }
 
-func (t *SyncTask) Run(ctx context.Context) error {
+func (t *SyncTask) Run(ctx context.Context) (runErr error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	unlock, err := t.lockState(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { runErr = errors.Join(runErr, unlock()) }()
 	if err := t.loadCounters(); err != nil {
 		return err
 	}
@@ -118,7 +129,11 @@ func (t *SyncTask) Run(ctx context.Context) error {
 	if !preparationFailed && ctx.Err() == nil {
 		for _, key := range slices.Sorted(maps.Keys(groups)) {
 			group := groups[key]
-			if group.failed || group.action == config.UnmatchedRepoActionIgnore {
+			if group.action == config.UnmatchedRepoActionIgnore {
+				t.clearGroupCounters(group)
+				continue
+			}
+			if group.failed {
 				continue
 			}
 			if err := t.deleteUnmatched(ctx, group); err != nil {
@@ -258,6 +273,17 @@ func (t *SyncTask) migrateTarget(ctx context.Context, run *targetRun) error {
 		return fmt.Errorf("load GitHub repos for %s: %w", run.target.Owner, err)
 	}
 	log.Printf("found %d repos in %s", len(repos), run.target.Owner)
+	key := sourceCountKey(run.target)
+	previous := t.counter[key]
+	if run.group.action != config.UnmatchedRepoActionIgnore && len(repos) == 0 {
+		return fmt.Errorf("GitHub returned no repositories for %s; refusing automatic deletion (verify the source and token)", run.target.Owner)
+	}
+	if run.group.action != config.UnmatchedRepoActionIgnore && previous > 0 && len(repos)*2 < previous {
+		return fmt.Errorf("GitHub repository list for %s shrank from %d to %d; refusing automatic deletion (verify the source and token, then remove state entry %q to accept the change)", run.target.Owner, previous, len(repos), key)
+	}
+	if t.conf.StateFile != "" {
+		t.counter[key] = len(repos)
+	}
 	var errs []error
 	for _, repo := range repos {
 		if err := ctx.Err(); err != nil {
@@ -297,6 +323,18 @@ func (t *SyncTask) deleteUnmatched(ctx context.Context, group *destinationGroup)
 	repos, err := group.backup.LoadRepos(ctx, group.owner)
 	if err != nil {
 		return fmt.Errorf("load destination repos for %s: %w", group.owner.Name, err)
+	}
+	prefix := group.counterPrefix()
+	seen := make(map[string]struct{}, len(repos))
+	for _, repo := range repos {
+		seen[prefix+repo] = struct{}{}
+	}
+	for key := range t.counter {
+		if strings.HasPrefix(key, prefix) {
+			if _, ok := seen[key]; !ok {
+				delete(t.counter, key)
+			}
+		}
 	}
 	var toDelete []string
 	for _, repo := range repos {
@@ -343,6 +381,15 @@ func (t *SyncTask) deleteUnmatched(ctx context.Context, group *destinationGroup)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (t *SyncTask) clearGroupCounters(group *destinationGroup) {
+	prefix := group.counterPrefix()
+	for key := range t.counter {
+		if strings.HasPrefix(key, prefix) {
+			delete(t.counter, key)
+		}
+	}
 }
 
 func confirmDeletion(ctx context.Context) bool {

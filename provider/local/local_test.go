@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,6 +65,26 @@ func TestMirrorCloneAndUpdate(t *testing.T) {
 	}
 }
 
+func TestCloneMarkerFailureLeavesNoDestination(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "source.git")
+	owner := filepath.Join(root, "backup")
+	if err := os.Mkdir(owner, 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", source)
+	destination := filepath.Join(owner, "repo")
+	err := cloneRepository(context.Background(), source, owner, destination, "", true, func(string) error {
+		return errors.New("marker failed")
+	})
+	if err == nil {
+		t.Fatal("expected marker failure")
+	}
+	if _, err := os.Stat(destination); !os.IsNotExist(err) {
+		t.Fatalf("destination remains after marker failure: %v", err)
+	}
+}
+
 func TestLoadReposSkipsDirectoriesInsideParentRepository(t *testing.T) {
 	root := t.TempDir()
 	git(t, root, "init")
@@ -71,7 +92,14 @@ func TestLoadReposSkipsDirectoriesInsideParentRepository(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(ownerPath, "unrelated"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	git(t, root, "init", "--bare", filepath.Join(ownerPath, "mirror"))
+	mirror := filepath.Join(ownerPath, "mirror")
+	git(t, root, "init", "--bare", mirror)
+	git(t, mirror, "remote", "add", "origin", "https://github.com/source/mirror.git")
+	git(t, mirror, "config", "remote.origin.mirror", "true")
+	if err := markManagedRepo(context.Background(), mirror, "source", "mirror"); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", filepath.Join(ownerPath, "unmanaged"))
 	client := NewLocal(&Config{Root: root})
 	repos, err := client.LoadRepos(context.Background(), &provider.Owner{Name: "owner"})
 	if err != nil {
@@ -79,6 +107,75 @@ func TestLoadReposSkipsDirectoriesInsideParentRepository(t *testing.T) {
 	}
 	if len(repos) != 1 || repos[0] != "mirror" {
 		t.Fatalf("unexpected repositories: %v", repos)
+	}
+}
+
+func TestDeleteRepoRejectsUnmanagedAndTraversal(t *testing.T) {
+	root := t.TempDir()
+	ownerPath := filepath.Join(root, "owner")
+	if err := os.Mkdir(ownerPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	unmanaged := filepath.Join(ownerPath, "unmanaged")
+	git(t, root, "init", "--bare", unmanaged)
+	client := NewLocal(&Config{Root: root})
+	if _, err := client.DeleteRepo(context.Background(), "owner", "unmanaged"); err == nil {
+		t.Fatal("unmanaged repository was deleted")
+	}
+	if _, err := os.Stat(unmanaged); err != nil {
+		t.Fatal("unmanaged repository is missing:", err)
+	}
+	if _, err := client.DeleteRepo(context.Background(), "..", "unmanaged"); err == nil {
+		t.Fatal("path traversal was accepted")
+	}
+}
+
+func TestDeleteRepoRemovesManagedRepository(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "owner", "repo")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", path)
+	git(t, path, "remote", "add", "origin", "https://github.com/source/repo.git")
+	git(t, path, "config", "remote.origin.mirror", "true")
+	if err := markManagedRepo(context.Background(), path, "source", "repo"); err != nil {
+		t.Fatal(err)
+	}
+	client := NewLocal(&Config{Root: root})
+	if _, err := client.DeleteRepo(context.Background(), "owner", "repo"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("managed repository still exists: %v", err)
+	}
+}
+
+func TestDeleteRepoRejectsSymlinkAndChangedOrigin(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "owner", "repo")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", path)
+	git(t, path, "remote", "add", "origin", "https://github.com/source/repo.git")
+	git(t, path, "config", "remote.origin.mirror", "true")
+	if err := markManagedRepo(context.Background(), path, "source", "repo"); err != nil {
+		t.Fatal(err)
+	}
+	client := NewLocal(&Config{Root: root})
+	git(t, path, "remote", "set-url", "origin", "https://github.com/other/repo.git")
+	if _, err := client.DeleteRepo(context.Background(), "owner", "repo"); err == nil {
+		t.Fatal("repository with changed origin was deleted")
+	}
+	if err := os.Symlink(path, filepath.Join(root, "owner", "link")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.DeleteRepo(context.Background(), "owner", "link"); err == nil {
+		t.Fatal("repository symlink was accepted")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("repository is missing:", err)
 	}
 }
 

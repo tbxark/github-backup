@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/gofrs/flock"
 
 	"github.com/tbxark/github-backup/config"
 )
@@ -22,11 +27,42 @@ func counterKey(target *config.GithubConfig, repo string) string {
 }
 
 func (g *destinationGroup) counterKey(repo string) string {
+	return g.counterPrefix() + repo
+}
+
+func (g *destinationGroup) counterPrefix() string {
 	if len(g.targets) == 1 {
-		return counterKey(g.targets[0], repo)
+		return counterKey(g.targets[0], "")
 	}
 	hash := sha256.Sum256([]byte(g.key))
-	return fmt.Sprintf("destination:%x/%s", hash, repo)
+	return fmt.Sprintf("destination:%x/", hash)
+}
+
+func sourceCountKey(target *config.GithubConfig) string {
+	identity, _ := json.Marshal(struct {
+		Owner string
+		IsOrg bool
+	}{strings.ToLower(target.Owner), target.IsOwnerOrg})
+	hash := sha256.Sum256(identity)
+	return fmt.Sprintf("source:%x", hash)
+}
+
+func (t *SyncTask) lockState(ctx context.Context) (func() error, error) {
+	if t.conf.StateFile == "" {
+		return func() error { return nil }, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(t.conf.StateFile), 0700); err != nil {
+		return nil, fmt.Errorf("create deletion state directory: %w", err)
+	}
+	lock := flock.New(t.conf.StateFile + ".lock")
+	locked, err := lock.TryLockContext(ctx, 100*time.Millisecond)
+	if err != nil {
+		return nil, fmt.Errorf("lock deletion state: %w", err)
+	}
+	if !locked {
+		return nil, fmt.Errorf("lock deletion state: lock was not acquired")
+	}
+	return lock.Unlock, nil
 }
 
 func (t *SyncTask) loadCounters() error {

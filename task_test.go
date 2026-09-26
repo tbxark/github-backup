@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/tbxark/github-backup/config"
+	"github.com/tbxark/github-backup/provider/gitea"
 	"github.com/tbxark/github-backup/provider/github"
+	"github.com/tbxark/github-backup/provider/local"
 	"github.com/tbxark/github-backup/provider/provider"
 )
 
@@ -240,5 +242,72 @@ func TestRunPassesCallerContextToSourceAndProvider(t *testing.T) {
 	}
 	if sourceCtx != ctx || backup.migrateCtx != ctx {
 		t.Fatal("run context was not passed to source and backup provider")
+	}
+}
+
+func TestSourceListAnomalySkipsDeletion(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		first  []github.Repo
+		second []github.Repo
+	}{
+		{"empty", []github.Repo{{Name: "one"}}, nil},
+		{"large shrink", []github.Repo{{Name: "one"}, {Name: "two"}, {Name: "three"}, {Name: "four"}, {Name: "five"}}, []github.Repo{{Name: "one"}, {Name: "two"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			task, backup := testTask(t, testTarget("first", 0))
+			backup.repos = make([]string, 0, len(tc.first))
+			for _, repo := range tc.first {
+				backup.repos = append(backup.repos, repo.Name)
+			}
+			task.loadSource = func(context.Context, string, string, bool) ([]github.Repo, error) { return tc.first, nil }
+			if err := task.Run(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			task.loadSource = func(context.Context, string, string, bool) ([]github.Repo, error) { return tc.second, nil }
+			if err := task.Run(context.Background()); err == nil {
+				t.Fatal("expected source list anomaly")
+			}
+			if len(backup.deleted) != 0 {
+				t.Fatalf("deleted after source list anomaly: %v", backup.deleted)
+			}
+		})
+	}
+}
+
+func TestSmallSourceListChangeStillDeletes(t *testing.T) {
+	task, backup := testTask(t, testTarget("first", 0))
+	backup.repos = []string{"one", "two", "three"}
+	repos := []github.Repo{{Name: "one"}, {Name: "two"}, {Name: "three"}}
+	task.loadSource = func(context.Context, string, string, bool) ([]github.Repo, error) { return repos, nil }
+	if err := task.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	repos = repos[:2]
+	if err := task.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(backup.deleted, []string{"three"}) {
+		t.Fatalf("deleted = %v, want three", backup.deleted)
+	}
+}
+
+func TestInvalidProviderFailsBeforeSourceAccess(t *testing.T) {
+	for _, backup := range []*config.BackupProviderConfig{
+		{Type: config.BackupProviderConfigTypeLocal, Config: config.ToRaw(local.Config{Root: ""})},
+		{Type: config.BackupProviderConfigTypeLocal, Config: config.ToRaw(local.Config{Root: t.TempDir(), Action: "reset"})},
+		{Type: config.BackupProviderConfigTypeGitea, Config: config.ToRaw(gitea.Config{Host: "invalid"})},
+	} {
+		target := testTarget("first", 0)
+		target.Backup = backup
+		task := NewTask(&config.SyncConfig{Targets: []*config.GithubConfig{target}})
+		called := false
+		task.loadSource = func(context.Context, string, string, bool) ([]github.Repo, error) {
+			called = true
+			return nil, nil
+		}
+		if err := task.Run(context.Background()); err == nil || called {
+			t.Fatalf("invalid provider: error = %v, source called = %v", err, called)
+		}
 	}
 }

@@ -19,6 +19,17 @@ type Config struct {
 	AuthUsername string `json:"auth_username"`
 }
 
+func (c *Config) Validate() error {
+	if c == nil {
+		return errors.New("gitea backup config is missing")
+	}
+	endpoint, err := url.Parse(c.Host)
+	if err != nil || (endpoint.Scheme != "https" && endpoint.Scheme != "http") || endpoint.Hostname() == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+		return fmt.Errorf("invalid Gitea host %q", c.Host)
+	}
+	return nil
+}
+
 var _ provider.Provider = &Gitea{}
 
 type Gitea struct {
