@@ -4,86 +4,97 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:,">
-  <title>GitHub Backup Configuration Editor</title>
-  <style>
-    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #24292f; background: #f6f8fa; }
-    * { box-sizing: border-box; }
-    body { margin: 0; }
-    button, input, select, textarea { font: inherit; }
-    button { cursor: pointer; }
-    [v-cloak] { display: none; }
-    .hero { color: #f0f6fc; background: #24292f; border-bottom: 1px solid #57606a; padding: 28px max(24px, calc((100vw - 1280px) / 2)); }
-    .hero-inner { max-width: 1280px; margin: auto; display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
-    .eyebrow { margin: 0 0 9px; color: #8b949e; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    h1 { margin: 0; font-size: clamp(25px, 3vw, 32px); letter-spacing: -.025em; }
-    .hero p:last-child { max-width: 680px; margin: 10px 0 0; color: #c9d1d9; line-height: 1.55; }
-    .hero-badge { border: 1px solid #57606a; border-radius: 6px; padding: 7px 11px; white-space: nowrap; color: #c9d1d9; font-size: 12px; }
-    .layout { max-width: 1280px; padding: 24px 20px 60px; margin: auto; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(330px, 1fr); gap: 20px; align-items: start; }
-    .stack { display: grid; gap: 16px; }
-    .card { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; padding: 22px; }
-    .card-head, .section-head, .target-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
-    h3 { margin: 0; font-size: 14px; }
-    .muted { color: #57606a; font-size: 13px; line-height: 1.5; margin: 6px 0 0; }
-    .section { margin-top: 20px; padding-top: 19px; border-top: 1px solid #d8dee4; }
-    .section-head { margin-bottom: 13px; align-items: center; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-    .field { display: grid; gap: 7px; min-width: 0; }
-    .field.full { grid-column: 1 / -1; }
-    .field > span, .field > label { font-size: 13px; font-weight: 600; color: #24292f; }
-    input:not([type="checkbox"]):not([type="file"]), select, textarea { width: 100%; min-width: 0; border: 1px solid #d0d7de; border-radius: 6px; padding: 8px 10px; color: #24292f; background: #fff; outline: none; }
-    input:focus, select:focus, textarea:focus { border-color: #0969da !important; box-shadow: 0 0 0 3px #0969da33; }
-    textarea { min-height: 72px; resize: vertical; line-height: 1.45; }
-    input::placeholder, textarea::placeholder { color: #6e7781; }
-    .hint { color: #57606a; font-size: 12px; line-height: 1.45; }
-    .check { display: inline-flex; align-items: center; gap: 8px; color: #24292f; font-size: 13px; font-weight: 500; cursor: pointer; }
-    .check input { width: 16px; height: 16px; accent-color: #0969da; }
-    .checks { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; min-height: 38px; }
-    .button { border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; color: #24292f; padding: 7px 12px; font-weight: 600; font-size: 13px; }
-    .button:hover { background: #eef1f4; border-color: #afb8c1; }
-    .button.primary { background: #2da44e; border-color: #2a9146; color: #fff; }
-    .button.primary:hover { background: #2c974b; border-color: #298e46; }
-    .button.danger { color: #cf222e; }
-    .button.danger:hover { background: #ffebe9; border-color: #cf222e; }
-    .button:disabled { opacity: .55; cursor: not-allowed; }
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
-    .target { border: 1px solid #d0d7de; border-radius: 6px; padding: 17px; background: #f6f8fa; }
-    .target + .target { margin-top: 14px; }
-    .target-head { align-items: center; margin-bottom: 16px; }
-    .target-name { font-weight: 600; }
-    .pill { display: inline-block; padding: 3px 7px; border: 1px solid #b6e3ff; border-radius: 999px; background: #ddf4ff; color: #0969da; font-size: 11px; font-weight: 600; vertical-align: 2px; }
-    .subcard { margin-top: 14px; padding: 15px; border: 1px solid #d8dee4; border-radius: 6px; background: #fff; }
-    .subcard > .section-head { margin-bottom: 12px; }
-    .row { display: flex; gap: 8px; align-items: center; }
-    .row > :first-child { flex: 1; }
-    .token-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; margin-top: 8px; }
-    .preview { position: sticky; top: 16px; }
-    .preview textarea { background: #f6f8fa; border: 1px solid #d0d7de; color: #24292f; min-height: 390px; max-height: 58vh; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 14px; tab-size: 2; }
-    .preview .card-head { margin-bottom: 14px; }
-    .preview .toolbar { margin-top: 12px; }
-    .notice { margin-top: 14px; border-radius: 6px; padding: 11px 13px; font-size: 12px; line-height: 1.5; }
-    .notice.error { color: #82071e; background: #ffebe9; border: 1px solid #ffcecb; }
-    .notice.warn { color: #633c01; background: #fff8c5; border: 1px solid #eed888; }
-    .notice.ok { color: #116329; background: #dafbe1; border: 1px solid #aceebb; }
-    .notice ul { margin: 6px 0 0; padding-left: 19px; }
-    .toast { position: fixed; right: 22px; bottom: 20px; z-index: 10; padding: 10px 14px; background: #24292f; color: #fff; border: 1px solid #57606a; border-radius: 6px; font-size: 13px; }
-    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } .preview { position: static; } .preview textarea { max-height: none; } }
-    @media (max-width: 600px) { .hero { padding: 26px 20px; } .hero-badge { display: none; } .layout { padding: 16px 12px 36px; } .card { padding: 18px; } .grid { grid-template-columns: 1fr; } .token-row { grid-template-columns: 1fr; } }
-  </style>
+  <title>GitHub Backup — Back up repositories to Gitea or local Git mirrors</title>
+  <meta name="description" content="Back up GitHub repositories to Gitea or local bare Git mirrors. Set up GitHub Backup and create a configuration in your browser.">
+  <script>
+    (() => {
+      let saved;
+      try { saved = localStorage.getItem('github-backup-theme'); } catch (_) {}
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = saved === 'light' || saved === 'dark' ? saved : (prefersDark ? 'dark' : 'light');
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <div>
-        <p class="eyebrow">GitHub Backup · Config Builder</p>
-        <h1>Configuration Editor</h1>
-        <p>Configure sources, destinations, and filters. A ready-to-use config.json appears as you edit.</p>
+  <header class="site-header">
+    <nav class="nav container" aria-label="Main navigation">
+      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">↗</span> GitHub Backup</a>
+      <div class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#quick-start">Quick start</a>
+        <a href="#config-editor">Config editor</a>
+        <a href="https://github.com/tbxark/github-backup" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       </div>
-      <span class="hero-badge">Single page · No build</span>
-    </div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch color theme">◐ Theme</button>
+    </nav>
   </header>
 
-  <main id="app" v-cloak class="layout">
+  <section class="hero" id="top" aria-labelledby="hero-title">
+    <div class="hero-inner container">
+      <div>
+        <p class="eyebrow">Your repositories, your backup</p>
+        <h1 id="hero-title">Keep a copy of your GitHub repositories.</h1>
+        <p class="hero-lede">GitHub Backup mirrors repositories from a GitHub user or organization to Gitea or a local directory. Set it up once, run it on demand, or schedule regular backups.</p>
+        <div class="hero-actions">
+          <a class="hero-link primary" href="#quick-start">Get started ↓</a>
+          <a class="hero-link" href="#config-editor">Create config ↗</a>
+        </div>
+      </div>
+      <div class="hero-visual" role="img" aria-label="GitHub repositories mirrored to a local Git directory or Gitea">
+        <div class="visual-top"><span class="visual-dot"></span><span class="visual-dot"></span><span class="visual-dot"></span><span class="visual-title">backup flow</span></div>
+        <div class="visual-body">
+          <div class="visual-source"><span class="visual-label">Source · GitHub</span><span class="visual-name">github.com/<span>your-org</span>/*</span></div>
+          <div class="visual-flow">mirror repositories ↓</div>
+          <div class="visual-dest"><span class="visual-label">Destination</span><span class="visual-name">Gitea <span>or</span> local Git mirrors</span></div>
+        </div>
+        <div class="visual-foot">✓ repositories backed up</div>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <section class="intro container" id="overview" aria-labelledby="overview-title">
+      <span class="section-kicker">Overview</span>
+      <h2 class="section-title" id="overview-title">A straightforward backup workflow</h2>
+      <p class="section-lede">Choose which repositories to include, where they should go, and how often the backup runs.</p>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="feature-icon" aria-hidden="true">↗</span><h3>Two destinations</h3><p>Send repositories to a Gitea instance or store them as bare Git mirrors in a local directory.</p></article>
+        <article class="feature-card"><span class="feature-icon" aria-hidden="true">◎</span><h3>Precise selection</h3><p>Back up users or organizations. Use allow and deny patterns to choose repositories by owner, name, visibility, fork, and archive status.</p></article>
+        <article class="feature-card"><span class="feature-icon" aria-hidden="true">↻</span><h3>Run your way</h3><p>Run once from the command line or add a cron expression in the configuration for repeated backups.</p></article>
+      </div>
+    </section>
+
+    <section class="guide container" id="quick-start" aria-labelledby="guide-title">
+      <span class="section-kicker">Quick start</span>
+      <h2 class="section-title" id="guide-title">From install to first backup</h2>
+      <p class="section-lede">The configuration editor below generates a JSON file for the command line tool.</p>
+      <div class="guide-grid">
+        <div class="guide-panel">
+          <div class="step"><span class="step-number">1</span><div><h3>Install the command line tool</h3><p>Install with Go, or build from the <a href="https://github.com/tbxark/github-backup" target="_blank" rel="noopener noreferrer">source repository</a>.</p><pre class="code-block"><code>go install github.com/tbxark/github-backup@latest</code></pre></div></div>
+          <div class="step"><span class="step-number">2</span><div><h3>Create a configuration</h3><p><a href="#config-editor">Use the editor</a> to set a GitHub owner and token, choose a backup provider, then download <code>config.json</code>. You can also import an existing JSON file to edit it.</p></div></div>
+          <div class="step"><span class="step-number">3</span><div><h3>Run a backup</h3><p>Place the file where the command can read it. Without a cron expression, the tool runs once and exits.</p><pre class="code-block"><code>github-backup -config config.json</code></pre></div></div>
+        </div>
+        <aside class="guide-panel guide-aside">
+          <h3>Before you run</h3>
+          <p>Keep your backup destination and deletion state file on persistent storage, especially for scheduled or container runs.</p>
+          <ul>
+            <li><strong>Local:</strong> Set a writable root directory. Repositories are stored as bare Git mirrors under <code>root/owner/repo</code>.</li>
+            <li><strong>Gitea:</strong> Provide your server URL and API token in the backup provider settings.</li>
+            <li><strong>Filters:</strong> Review unmatched repository behavior before enabling automatic deletion. The pre-delete count and state file help track repeated matches.</li>
+            <li><strong>Secrets:</strong> Downloaded configuration files contain plain-text tokens. Store them securely.</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="editor-section" id="config-editor" aria-labelledby="editor-title">
+      <div class="container">
+        <div class="editor-heading">
+          <div><span class="section-kicker">Configuration</span><h2 class="section-title" id="editor-title">Build your config.json</h2><p class="section-lede">Configure sources, destinations, and filters. The preview updates as you edit.</p></div>
+          <span class="editor-badge">Browser editor · No build needed</span>
+        </div>
+        <div id="app" v-cloak class="layout">
     <div class="stack">
       <section class="card">
         <div class="card-head">
@@ -209,8 +220,38 @@
       <p class="muted">The form is not saved automatically. Exported files contain plain-text tokens.</p>
     </aside>
     <div v-if="toast" class="toast" role="status">{{ toast }}</div>
+        </div>
+      </div>
+    </section>
   </main>
 
+  <footer class="site-footer"><div class="container footer-inner"><span>GitHub Backup · Open source under the MIT License</span><a href="https://github.com/tbxark/github-backup" target="_blank" rel="noopener noreferrer">View the project on GitHub ↗</a></div></footer>
+
+  <script>
+    (() => {
+      const toggle = document.getElementById('theme-toggle');
+      const syncLabel = () => {
+        const dark = document.documentElement.dataset.theme === 'dark';
+        toggle.textContent = dark ? '☀ Light mode' : '☾ Dark mode';
+        toggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+      };
+      toggle.addEventListener('click', () => {
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem('github-backup-theme', next); } catch (_) {}
+        syncLabel();
+      });
+      if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+        let saved;
+        try { saved = localStorage.getItem('github-backup-theme'); } catch (_) {}
+        if (saved !== 'light' && saved !== 'dark') {
+          document.documentElement.dataset.theme = event.matches ? 'dark' : 'light';
+          syncLabel();
+        }
+      });
+      syncLabel();
+    })();
+  </script>
   <script src="https://unpkg.com/vue@3.5.42/dist/vue.global.prod.js"></script>
   <script>
     const { createApp } = Vue;
