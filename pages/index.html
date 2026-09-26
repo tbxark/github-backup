@@ -131,7 +131,7 @@
           <div v-if="form.defaults.backup.type === 'local'" class="grid section">
             <label class="field"><span>Local root directory</span><input v-model.trim="form.defaults.backup.root" placeholder="/data/github-backup"></label>
             <div class="field"><span>Confirmation prompts</span><div class="checks"><label class="check"><input v-model="form.defaults.backup.questions" type="checkbox">Ask before migrating or deleting</label></div></div>
-            <label class="field"><span>Action (legacy)</span><select v-model="form.defaults.backup.action"><option value="">Default</option><option value="fetch">fetch</option><option value="pull">pull</option></select><small class="hint">Bare mirrors always update with fetch.</small></label>
+            <label class="field"><span>Local update mode</span><select v-model="form.defaults.backup.action"><option value="">Bare mirror (default)</option><option value="fetch">Working tree: fetch</option><option value="pull">Working tree: pull</option></select><small class="hint">Existing bare mirrors always fetch. Set pull or fetch to keep working-tree clones updated.</small></label>
           </div>
         </div>
         <div class="section">
@@ -178,7 +178,7 @@
               <div v-if="target.backupMode === 'local'" class="grid section">
                 <label class="field"><span>Local root directory</span><input v-model.trim="target.backup.root" placeholder="/data/github-backup"></label>
                 <div class="field"><span>Confirmation prompts</span><div class="checks"><label class="check"><input v-model="target.backup.questions" type="checkbox">Ask before migrating or deleting</label></div></div>
-                <label class="field"><span>Action (legacy)</span><select v-model="target.backup.action"><option value="">Default</option><option value="fetch">fetch</option><option value="pull">pull</option></select><small class="hint">Bare mirrors always update with fetch.</small></label>
+                <label class="field"><span>Local update mode</span><select v-model="target.backup.action"><option value="">Bare mirror (default)</option><option value="fetch">Working tree: fetch</option><option value="pull">Working tree: pull</option></select><small class="hint">Existing bare mirrors always fetch. Set pull or fetch to keep working-tree clones updated.</small></label>
               </div>
             </div>
             <div class="subcard">

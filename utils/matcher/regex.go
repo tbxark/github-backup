@@ -19,7 +19,10 @@ func Identity(owner, repo string, private, fork, archived bool) string {
 
 func IsMatch(id string, reg ...string) bool {
 	for _, r := range reg {
-		regx := regexp.MustCompile(r)
+		regx, err := regexp.Compile(r)
+		if err != nil {
+			continue
+		}
 		if regx.MatchString(id) {
 			log.Printf("match %s %s", id, r)
 			return true

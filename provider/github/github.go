@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ func NewGithub(token string) *Github {
 	return &Github{Token: token, endpoint: "https://api.github.com/graphql"}
 }
 
-func (g *Github) LoadAllRepos(owner string, isOrg bool) ([]Repo, error) {
+func (g *Github) LoadAllRepos(ctx context.Context, owner string, isOrg bool) ([]Repo, error) {
 	tmpl := `
 query {
   repositories: %s {
@@ -66,7 +67,7 @@ query {
 	ownerLower := strings.ToLower(owner)
 	for {
 		query := map[string]string{"query": fmt.Sprintf(tmpl, queryType, next)}
-		data, err := request.POST[reposQuery](g.endpoint, query, token)
+		data, err := request.POST[reposQuery](ctx, g.endpoint, query, token)
 		if err != nil {
 			return nil, err
 		}

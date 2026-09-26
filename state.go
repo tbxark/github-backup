@@ -21,6 +21,14 @@ func counterKey(target *config.GithubConfig, repo string) string {
 	return fmt.Sprintf("%x/%s", hash, repo)
 }
 
+func (g *destinationGroup) counterKey(repo string) string {
+	if len(g.targets) == 1 {
+		return counterKey(g.targets[0], repo)
+	}
+	hash := sha256.Sum256([]byte(g.key))
+	return fmt.Sprintf("destination:%x/%s", hash, repo)
+}
+
 func (t *SyncTask) loadCounters() error {
 	if t.conf.StateFile == "" {
 		return nil

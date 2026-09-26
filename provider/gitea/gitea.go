@@ -1,9 +1,11 @@
 package gitea
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/tbxark/github-backup/provider/provider"
@@ -24,11 +26,22 @@ type Gitea struct {
 }
 
 func NewGitea(conf *Config) *Gitea {
-	conf.Host = strings.TrimRight(conf.Host, "/")
-	if !strings.HasSuffix(conf.Host, "/api/v1") {
-		conf.Host += "/api/v1"
+	copy := *conf
+	copy.Host = strings.TrimRight(copy.Host, "/")
+	if !strings.HasSuffix(copy.Host, "/api/v1") {
+		copy.Host += "/api/v1"
 	}
-	return &Gitea{conf: conf}
+	return &Gitea{conf: &copy}
+}
+
+func (g *Gitea) DestinationID() string {
+	endpoint, err := url.Parse(g.conf.Host)
+	if err != nil {
+		return "gitea:" + g.conf.Host
+	}
+	endpoint.Scheme = strings.ToLower(endpoint.Scheme)
+	endpoint.Host = strings.ToLower(endpoint.Host)
+	return "gitea:" + endpoint.String()
 }
 
 func (g *Gitea) buildReposPath(owner string, isOrg bool) string {
@@ -45,14 +58,14 @@ func (g *Gitea) requestModifier() []request.Modifier {
 	}
 }
 
-func (g *Gitea) LoadRepos(owner *provider.Owner) ([]string, error) {
+func (g *Gitea) LoadRepos(ctx context.Context, owner *provider.Owner) ([]string, error) {
 	limit := 100
 	page := 1
 	repos := make([]string, 0)
 	ownerLower := strings.ToLower(owner.Name)
 	for {
 		url := fmt.Sprintf("%s/%s?limit=%d&page=%d", g.conf.Host, g.buildReposPath(owner.Name, owner.IsOrg), limit, page)
-		res, err := request.GET[[]reposQuery](url, g.requestModifier()...)
+		res, err := request.GET[[]reposQuery](ctx, url, g.requestModifier()...)
 		if err != nil {
 			return nil, err
 		}
@@ -69,15 +82,15 @@ func (g *Gitea) LoadRepos(owner *provider.Owner) ([]string, error) {
 	return repos, nil
 }
 
-func (g *Gitea) MigrateRepo(from *provider.Owner, to *provider.Owner, repo *provider.Repo) (string, error) {
+func (g *Gitea) MigrateRepo(ctx context.Context, from *provider.Owner, to *provider.Owner, repo *provider.Repo) (string, error) {
 	cloneAddr := fmt.Sprintf("https://github.com/%s/%s.git", from.Name, repo.Name)
 	repoURL := fmt.Sprintf("%s/repos/%s/%s", g.conf.Host, to.Name, repo.Name)
-	existing, err := request.GET[repoDetails](repoURL, g.requestModifier()...)
+	existing, err := request.GET[repoDetails](ctx, repoURL, g.requestModifier()...)
 	if err == nil {
 		if !existing.Mirror || !strings.EqualFold(strings.TrimSuffix(existing.OriginalURL, ".git"), strings.TrimSuffix(cloneAddr, ".git")) {
 			return "", fmt.Errorf("destination %s/%s exists but is not a mirror of %s", to.Name, repo.Name, cloneAddr)
 		}
-		resp, err := request.Request(http.MethodPost, repoURL+"/mirror-sync", g.requestModifier()...)
+		resp, err := request.Request(ctx, http.MethodPost, repoURL+"/mirror-sync", g.requestModifier()...)
 		if err != nil {
 			return "", fmt.Errorf("sync mirror %s/%s: %w", to.Name, repo.Name, err)
 		}
@@ -103,16 +116,16 @@ func (g *Gitea) MigrateRepo(from *provider.Owner, to *provider.Owner, repo *prov
 		Mirror:         true,
 	}
 	url := fmt.Sprintf("%s/repos/migrate", g.conf.Host)
-	res, err := request.POST[reposQuery](url, r, g.requestModifier()...)
+	res, err := request.POST[reposQuery](ctx, url, r, g.requestModifier()...)
 	if err != nil {
 		return "", err
 	}
 	return (*res).Name, nil
 }
 
-func (g *Gitea) DeleteRepo(owner, repo string) (string, error) {
+func (g *Gitea) DeleteRepo(ctx context.Context, owner, repo string) (string, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s", g.conf.Host, owner, repo)
-	resp, err := request.Request("DELETE", url, g.requestModifier()...)
+	resp, err := request.Request(ctx, http.MethodDelete, url, g.requestModifier()...)
 	if err != nil {
 		return "", err
 	}

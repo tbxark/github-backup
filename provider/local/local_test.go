@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,10 +42,10 @@ func TestMirrorCloneAndUpdate(t *testing.T) {
 	git(t, work, "add", "file")
 	git(t, work, "commit", "-m", "first")
 	git(t, work, "push", "origin", "main")
-	if err := gitCloneMirror(source, owner, mirror, ""); err != nil {
+	if err := gitCloneMirror(context.Background(), source, owner, mirror, ""); err != nil {
 		t.Fatal(err)
 	}
-	bare, err := isBareRepository(mirror)
+	bare, err := isBareRepository(context.Background(), mirror)
 	if err != nil || !bare {
 		t.Fatalf("mirror is not bare: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestMirrorCloneAndUpdate(t *testing.T) {
 	}
 	git(t, work, "commit", "-am", "second")
 	git(t, work, "push", "origin", "main")
-	if err := gitFetchMirror(mirror, ""); err != nil {
+	if err := gitFetchMirror(context.Background(), mirror, ""); err != nil {
 		t.Fatal(err)
 	}
 	second := git(t, mirror, "rev-parse", "refs/heads/main")
@@ -72,11 +73,163 @@ func TestLoadReposSkipsDirectoriesInsideParentRepository(t *testing.T) {
 	}
 	git(t, root, "init", "--bare", filepath.Join(ownerPath, "mirror"))
 	client := NewLocal(&Config{Root: root})
-	repos, err := client.LoadRepos(&provider.Owner{Name: "owner"})
+	repos, err := client.LoadRepos(context.Background(), &provider.Owner{Name: "owner"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(repos) != 1 || repos[0] != "mirror" {
 		t.Fatalf("unexpected repositories: %v", repos)
+	}
+}
+
+func TestMigrateRejectsMirrorWithDifferentOrigin(t *testing.T) {
+	root := t.TempDir()
+	repoPath := filepath.Join(root, "dest", "repo")
+	if err := os.MkdirAll(filepath.Dir(repoPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", repoPath)
+	git(t, repoPath, "remote", "add", "origin", "https://github.com/other/repo.git")
+	git(t, repoPath, "config", "remote.origin.mirror", "true")
+	client := NewLocal(&Config{Root: root})
+	_, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"})
+	if err == nil || !strings.Contains(err.Error(), "not a mirror of") {
+		t.Fatalf("expected origin mismatch, got %v", err)
+	}
+}
+
+func TestVerifyMirrorOriginAcceptsExpectedMirror(t *testing.T) {
+	root := t.TempDir()
+	repoPath := filepath.Join(root, "repo")
+	git(t, root, "init", "--bare", repoPath)
+	git(t, repoPath, "remote", "add", "origin", "https://github.com/source/repo.git")
+	git(t, repoPath, "config", "remote.origin.mirror", "true")
+	if err := verifyMirrorOrigin(context.Background(), repoPath, "https://github.com/source/repo.git"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWorkingTreeCloneAndPull(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "source.git")
+	work := filepath.Join(root, "work")
+	owner := filepath.Join(root, "backup")
+	clone := filepath.Join(owner, "repo")
+	if err := os.Mkdir(owner, 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", source)
+	git(t, root, "clone", source, work)
+	git(t, work, "checkout", "-b", "main")
+	git(t, work, "config", "user.email", "test@example.com")
+	git(t, work, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(work, "file"), []byte("one"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, work, "add", "file")
+	git(t, work, "commit", "-m", "first")
+	git(t, work, "push", "origin", "main")
+	git(t, source, "symbolic-ref", "HEAD", "refs/heads/main")
+	if err := gitCloneWorktree(context.Background(), source, owner, clone, ""); err != nil {
+		t.Fatal(err)
+	}
+	bare, err := isBareRepository(context.Background(), clone)
+	if err != nil || bare {
+		t.Fatalf("clone should be a working tree: bare=%v err=%v", bare, err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "file"), []byte("two"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, work, "commit", "-am", "second")
+	git(t, work, "push", "origin", "main")
+	if err := gitUpdateWorktree(context.Background(), clone, "", UpdateActionPull); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(clone, "file"))
+	if err != nil || string(content) != "two" {
+		t.Fatalf("pull content = %q, error = %v", content, err)
+	}
+}
+
+func TestWorktreeOriginAcceptsHTTPSAndSSH(t *testing.T) {
+	root := t.TempDir()
+	git(t, root, "init")
+	for index, remote := range []string{
+		"https://github.com/source/repo.git",
+		"git@github.com:source/repo.git",
+		"ssh://git@github.com/source/repo.git",
+	} {
+		if index == 0 {
+			git(t, root, "remote", "add", "origin", remote)
+		} else {
+			git(t, root, "remote", "set-url", "origin", remote)
+		}
+		if err := verifyWorktreeOrigin(context.Background(), root, "https://github.com/source/repo.git"); err != nil {
+			t.Fatalf("remote %q: %v", remote, err)
+		}
+	}
+}
+
+func TestExistingWorktreeRequiresAction(t *testing.T) {
+	root := t.TempDir()
+	repoPath := filepath.Join(root, "dest", "repo")
+	if err := os.MkdirAll(repoPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repoPath, "init")
+	client := NewLocal(&Config{Root: root})
+	_, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"})
+	if err == nil || !strings.Contains(err.Error(), "set local action") {
+		t.Fatalf("expected action guidance, got %v", err)
+	}
+}
+
+func TestMigrateExistingWorktreePulls(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "upstream.git")
+	work := filepath.Join(root, "work")
+	destination := filepath.Join(root, "dest", "repo")
+	if err := os.MkdirAll(filepath.Dir(destination), 0700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "--bare", source)
+	git(t, root, "clone", source, work)
+	git(t, work, "checkout", "-b", "main")
+	git(t, work, "config", "user.email", "test@example.com")
+	git(t, work, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(work, "file"), []byte("one"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, work, "add", "file")
+	git(t, work, "commit", "-m", "first")
+	git(t, work, "push", "origin", "main")
+	git(t, source, "symbolic-ref", "HEAD", "refs/heads/main")
+	git(t, root, "clone", source, destination)
+	remote := "https://github.com/source/repo.git"
+	git(t, destination, "remote", "set-url", "origin", remote)
+	git(t, destination, "config", "url.file://"+source+".insteadOf", remote)
+	if err := os.WriteFile(filepath.Join(work, "file"), []byte("two"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, work, "commit", "-am", "second")
+	git(t, work, "push", "origin", "main")
+	client := NewLocal(&Config{Root: root, Action: UpdateActionPull})
+	if _, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(destination, "file"))
+	if err != nil || string(content) != "two" {
+		t.Fatalf("migrated content = %q, error = %v", content, err)
+	}
+}
+
+func TestQuestionsDoNotBlockNonInteractiveRun(t *testing.T) {
+	client := NewLocal(&Config{Root: t.TempDir(), Questions: true})
+	client.SetInteractive(false)
+	if _, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"}); err == nil {
+		t.Fatal("migration prompted in non-interactive mode")
+	}
+	if _, err := client.DeleteRepo(context.Background(), "dest", "repo"); err == nil {
+		t.Fatal("deletion prompted in non-interactive mode")
 	}
 }

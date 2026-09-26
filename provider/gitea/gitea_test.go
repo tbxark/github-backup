@@ -1,6 +1,7 @@
 package gitea
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,10 +23,10 @@ func TestMigrateAndDeleteRejectHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 	client := NewGitea(&Config{Host: server.URL, Token: "token"})
-	if _, err := client.MigrateRepo(&provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"}); err == nil {
+	if _, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"}); err == nil {
 		t.Fatal("migration reported success for HTTP 409")
 	}
-	if _, err := client.DeleteRepo("dest", "repo"); err == nil {
+	if _, err := client.DeleteRepo(context.Background(), "dest", "repo"); err == nil {
 		t.Fatal("deletion reported success for HTTP 403")
 	}
 }
@@ -46,7 +47,7 @@ func TestExistingMirrorIsSynced(t *testing.T) {
 	}))
 	defer server.Close()
 	client := NewGitea(&Config{Host: server.URL, Token: "token"})
-	result, err := client.MigrateRepo(&provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"})
+	result, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"})
 	if err != nil || result != "synced" || syncCalls != 1 {
 		t.Fatalf("result=%q err=%v syncCalls=%d", result, err, syncCalls)
 	}
@@ -58,7 +59,15 @@ func TestExistingUnrelatedRepoIsRejected(t *testing.T) {
 	}))
 	defer server.Close()
 	client := NewGitea(&Config{Host: server.URL, Token: "token"})
-	if _, err := client.MigrateRepo(&provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"}); err == nil {
+	if _, err := client.MigrateRepo(context.Background(), &provider.Owner{Name: "source"}, &provider.Owner{Name: "dest"}, &provider.Repo{Name: "repo"}); err == nil {
 		t.Fatal("unrelated destination repository was accepted")
+	}
+}
+
+func TestDestinationIDPreservesPathCase(t *testing.T) {
+	first := NewGitea(&Config{Host: "https://EXAMPLE.com/Team"})
+	second := NewGitea(&Config{Host: "https://example.com/team"})
+	if first.DestinationID() == second.DestinationID() {
+		t.Fatal("distinct case-sensitive API paths share a destination")
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,7 +39,7 @@ func TestCorruptDeletionStateFailsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := NewTask(&config.SyncConfig{StateFile: stateFile})
-	if err := task.RunOnce(); err == nil {
+	if err := task.Run(context.Background()); err == nil {
 		t.Fatal("corrupt state was ignored")
 	}
 }

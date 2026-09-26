@@ -2,6 +2,7 @@ package request
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,9 +46,9 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("HTTP %s", e.Status)
 }
 
-func Request(method, url string, modifier ...Modifier) (*http.Response, error) {
+func Request(ctx context.Context, method, url string, modifier ...Modifier) (*http.Response, error) {
 	client := DefaultHttpClient()
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -74,9 +75,9 @@ func checkStatus(resp *http.Response) error {
 	return &StatusError{Code: resp.StatusCode, Status: resp.Status, Message: strings.TrimSpace(string(message))}
 }
 
-func GET[T any](url string, modifier ...Modifier) (*T, error) {
+func GET[T any](ctx context.Context, url string, modifier ...Modifier) (*T, error) {
 	client := DefaultHttpClient()
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +102,13 @@ func GET[T any](url string, modifier ...Modifier) (*T, error) {
 	return &result, nil
 }
 
-func POST[T any](url string, data any, modifier ...Modifier) (*T, error) {
+func POST[T any](ctx context.Context, url string, data any, modifier ...Modifier) (*T, error) {
 	client := DefaultHttpClient()
 	body, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

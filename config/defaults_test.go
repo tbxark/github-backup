@@ -1,9 +1,14 @@
 package config
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestMergeDefaultWithoutFilter(t *testing.T) {
@@ -41,11 +46,41 @@ func TestNewConfigStateFileOverride(t *testing.T) {
 	}
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	t.Setenv("GITHUB_BACKUP_STATE_FILE", statePath)
-	conf, err := NewConfig(path)
+	conf, err := NewConfig(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if conf.StateFile != statePath {
 		t.Fatalf("state path = %q, want %q", conf.StateFile, statePath)
+	}
+}
+
+func TestNewConfigUsesCallerContext(t *testing.T) {
+	started := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := NewConfig(ctx, server.URL)
+		result <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("config request did not reach server")
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("config error = %v, want context cancellation", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("config load did not stop after cancellation")
 	}
 }

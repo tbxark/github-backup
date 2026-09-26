@@ -50,10 +50,12 @@ Open [the project homepage and config editor](pages/index.html) in a browser to 
       "backup": {
         // The backup target type: gitea or local
         "type": "local",
-        // Local Git mirror configuration
+        // Local Git configuration
         "config": {
           // Mirror repositories are stored in SAVE_DIR/REPO_OWNER/REPO
           "root": "SAVE_DIR",
+          // Optional: "pull" or "fetch" keeps working-tree clones instead of bare mirrors
+          // "action": "pull",
           "questions": false
         }
       },
@@ -116,9 +118,11 @@ Open [the project homepage and config editor](pages/index.html) in a browser to 
 }
 ```
 
-The `local` provider creates a bare Git mirror over HTTPS. It uses the selected GitHub token for private repositories. Existing working-tree clones from earlier versions are not converted automatically; move them aside before rerunning the backup so a new mirror can be created. The container image includes Git; mount the mirror root as a persistent volume when using Docker.
+The `local` provider creates bare Git mirrors over HTTPS by default. Set `backup.config.action` to `pull` or `fetch` to create and update working-tree clones instead. This also lets installations from earlier versions keep updating their existing clones. Existing bare mirrors continue to fetch even when an action is set. The provider verifies each existing repository's origin before updating it, and uses the selected GitHub token for private repositories. The container image includes Git; mount the backup root as a persistent volume when using Docker.
 
 `pre_delete_check_count` uses `state_file` to keep deletion counts across process restarts. If omitted, the default is a sidecar file next to a local config. `GITHUB_BACKUP_STATE_FILE` can set the path when the config has no `state_file`; the supplied systemd service and Docker Compose example use persistent locations. Preserve this file across restarts.
+
+When multiple targets use the same backup destination and owner, deletion checks run once after all targets finish. A failed source load or migration skips deletion for that destination. Repositories from an `ignore` target remain protected even if its filter excludes them. If deletion settings differ, `ask` takes precedence over `delete`, and the largest `pre_delete_check_count` applies. Overlapping `specific_github_token` patterns are checked in lexicographic order; the first match wins. In cron mode, local `questions` cannot prompt and the affected operation reports an error.
 
 ### License
 

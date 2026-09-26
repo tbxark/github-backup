@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/go-sphere/confstore"
 	"github.com/go-sphere/confstore/codec"
@@ -134,20 +136,20 @@ func ToRaw[T any](conf T) json.RawMessage {
 	return raw
 }
 
-func NewConfig(path string) (*SyncConfig, error) {
+func NewConfig(ctx context.Context, path string) (*SyncConfig, error) {
 	prov, err := provider.Selector(
 		path,
 		provider.If(file.IsLocalPath, func(s string) provider.Provider {
 			return file.New(path, file.WithExpandEnv())
 		}),
 		provider.If(http.IsRemoteURL, func(s string) provider.Provider {
-			return http.New(path, http.WithTimeout(10))
+			return http.New(path, http.WithTimeout(10*time.Second))
 		}),
 	)
 	if err != nil {
 		return nil, err
 	}
-	config, err := confstore.Load[SyncConfig](prov, codec.JsonCodec())
+	config, err := confstore.LoadWithContext[SyncConfig](ctx, prov, codec.JsonCodec())
 	if err != nil {
 		return nil, err
 	}

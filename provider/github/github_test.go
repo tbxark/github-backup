@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,7 +28,7 @@ func TestLoadAllReposRejectsAPIError(t *testing.T) {
 			defer server.Close()
 			client := NewGithub("token")
 			client.endpoint = server.URL
-			if _, err := client.LoadAllRepos("owner", false); err == nil {
+			if _, err := client.LoadAllRepos(context.Background(), "owner", false); err == nil {
 				t.Fatal("expected API error, got an empty repository list")
 			}
 		})
@@ -47,7 +48,7 @@ func TestLoadAllReposPaginatesAndFiltersOwner(t *testing.T) {
 	defer server.Close()
 	client := NewGithub("token")
 	client.endpoint = server.URL
-	repos, err := client.LoadAllRepos("owner", false)
+	repos, err := client.LoadAllRepos(context.Background(), "owner", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +64,7 @@ func TestLoadAllReposRejectsMissingCursor(t *testing.T) {
 	defer server.Close()
 	client := NewGithub("token")
 	client.endpoint = server.URL
-	_, err := client.LoadAllRepos("owner", false)
+	_, err := client.LoadAllRepos(context.Background(), "owner", false)
 	if err == nil || !strings.Contains(err.Error(), "cursor") {
 		t.Fatalf("expected cursor error, got %v", err)
 	}
