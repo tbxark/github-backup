@@ -27,6 +27,9 @@ Usage of github-backup:
 github-backup -config config.json
 ```
 
+### Project website
+
+The [website source](pages/) is published by [the GitHub Pages workflow](.github/workflows/pages.yml) when `pages/` changes on `master`. It can also be run manually from the Actions tab. Before the first deployment, select **Settings → Pages → Build and deployment → Source → GitHub Actions** in the repository.
 
 ### Configuration
 
